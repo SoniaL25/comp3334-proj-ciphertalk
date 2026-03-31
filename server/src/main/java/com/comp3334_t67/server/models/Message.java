@@ -29,6 +29,8 @@ public class Message {
     @Column(name = "receiver_id")
     private UUID receiverId;
 
+    private String nouce;
+
     private String content_hashed;
     private LocalDateTime timestamp;
 

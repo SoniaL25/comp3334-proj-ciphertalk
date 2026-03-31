@@ -1,14 +1,10 @@
 package com.comp3334_t67.server.controllers;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import lombok.*;
 
-import lombok.AllArgsConstructor;
-
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import com.comp3334_t67.server.dtos.*;
-import com.comp3334_t67.server.services.FriendService;
+import com.comp3334_t67.server.services.*;
 
 
 @RestController
@@ -16,22 +12,22 @@ import com.comp3334_t67.server.services.FriendService;
 @AllArgsConstructor
 public class FriendController {
 
-    private final FriendService friendService;
+    // private final FriendService friendService;
 
-    @PostMapping("/requests")
-    public void sendFriendRequest(@RequestBody FriendRequestDto requestDto) {
-        friendService.sendFriendRequest(requestDto.getSenderEmail(), requestDto.getReceiverEmail());
-    }
+    // @PostMapping("/requests")
+    // public void sendFriendRequest(@RequestBody FriendRequestDto requestDto) {
+    //     friendService.sendFriendRequest(requestDto.getSenderEmail(), requestDto.getReceiverEmail());
+    // }
 
-    @PostMapping("/requests/respond")
-    public void respondToFriendRequest(@RequestBody FriendRequestResponseDto requestDto) {
-        friendService.respondToFriendRequest(requestDto.getRequestId(), requestDto.isAccepted());
-    }
+    // @PostMapping("/requests/respond")
+    // public void respondToFriendRequest(@RequestBody FriendRequestResponseDto requestDto) {
+    //     friendService.respondToFriendRequest(requestDto.getRequestId(), requestDto.isAccepted());
+    // }
 
-    @PostMapping("/requests/cancel")
-    public void cancelFriendRequest(@RequestBody CancelFriendRequestDto requestDto) {
-        friendService.cancelFriendRequest(requestDto.getSenderEmail(), requestDto.getRequestId());
-    }
+    // @PostMapping("/requests/cancel")
+    // public void cancelFriendRequest(@RequestBody CancelFriendRequestDto requestDto) {
+    //     friendService.cancelFriendRequest(requestDto.getSenderEmail(), requestDto.getRequestId());
+    // }
 
     // TODO: change both
     // @GetMapping("/requests/incoming")

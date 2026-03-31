@@ -1,10 +1,11 @@
 package com.comp3334_t67.server.dtos;
 
 import lombok.Data;
-import java.util.UUID;
 
 @Data
-public class CancelFriendRequestDto {
+public class SendMessageRequest {
     private String senderEmail;
-    private UUID requestId;
+    private String message_hash;
+    private String nouce;
+
 }

@@ -1,5 +1,6 @@
 package com.comp3334_t67.server.controllers;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -22,14 +23,14 @@ public class AuthController {
 
     // Register
     @PostMapping("/register")
-    public String register(@RequestBody RegisterRequest registerRequest) {
+    public ResponseEntity<ApiResponse<Void>> register(@RequestBody AuthRequest registerRequest) {
         authService.register(registerRequest.getEmail(), registerRequest.getPassword_hash());
-        return "User registered successfully";
+        return ResponseEntity.ok(ApiResponse.success("User registered successfully", null));
     }
 
     // login
     @PostMapping("/login")
-    public String login(HttpServletRequest request, @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<ApiResponse<Void>> login(HttpServletRequest request, @RequestBody AuthRequest loginRequest) {
         authService.login(loginRequest.getEmail(), loginRequest.getPassword_hash());
 
         // Store temporary auth state in session
@@ -37,12 +38,12 @@ public class AuthController {
         session.setAttribute("OTP_USER", loginRequest.getEmail());
         session.setAttribute("OTP_VERIFIED", false);
 
-        return "OTP sent";
+        return ResponseEntity.ok(ApiResponse.success("OTP sent", null));
     }
 
     // verify OTP
     @PostMapping("/verify-otp")
-    public String verifyOtp(HttpServletRequest request, @RequestBody OtpVerificationRequest otpRequest) {
+    public ResponseEntity<ApiResponse<Void>> verifyOtp(HttpServletRequest request, @RequestBody OtpVerificationRequest otpRequest) {
         HttpSession session = request.getSession(false);
         if (session == null) {
             throw new IllegalStateException("No active session");
@@ -67,16 +68,16 @@ public class AuthController {
 
         SecurityContextHolder.getContext().setAuthentication(auth);
         
-        return "OTP verified, login successful";
+        return ResponseEntity.ok(ApiResponse.success("OTP verified, login successful", null));
 
     }
 
     // logout
     @PostMapping("/logout")
-    public String logout(HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Object>> logout(HttpServletRequest request) {
         request.getSession().invalidate();
         SecurityContextHolder.clearContext();
-        return "Logged out successfully";
+        return ResponseEntity.ok(ApiResponse.success("Logged out successfully", null));
     }
 
 }
