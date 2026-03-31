@@ -1,0 +1,111 @@
+package com.comp3334_t67.server.services;
+
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import com.comp3334_t67.server.models.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import com.comp3334_t67.server.repos.*;
+
+
+
+@Service
+@RequiredArgsConstructor
+public class AuthService {
+
+    private final UserRepository userRepo;
+    private final EmailService emailService;
+
+    private final Map<String, String> otpStore = new ConcurrentHashMap<>();
+    private final Map<String, Long> expiryStore = new ConcurrentHashMap<>();
+
+    // Register a new user
+    public void register(String email, String password_hash) { 
+
+        // check if user already exists
+        if (userRepo.findByEmail(email) != null) {
+            throw new IllegalArgumentException("User with this email already exists");
+        }
+
+        // create a new user with the provided email and password hash
+        User user = createUser(email, password_hash);
+        // save the user to the database
+        userRepo.save(user);
+
+    }
+
+    public String login(String email, String password_hash) {
+
+        // verify user credentials
+        if (!verifyCredentials(email, password_hash)) {
+            throw new IllegalArgumentException("Invalid email or password");
+        }
+
+        // generate OTP and store it in memory with an expiry time
+        int otp = generateOTP();
+        otpStore.put(email, String.valueOf(otp));
+        expiryStore.put(email, System.currentTimeMillis() + 300000); // 5 minutes expiry
+
+        // send OTP to user's email
+        emailService.sendOtpEmail(email, String.valueOf(otp));
+
+        // return a message indicating that OTP has been sent
+        return "OTP has been sent to your email";
+
+    }
+
+    public boolean verifyOtp(String email, int otp) {
+        
+        // check if OTP exists for the email
+        if (otpStore.containsKey(email) && expiryStore.containsKey(email)) {
+
+            // check if OTP is still valid
+            if (System.currentTimeMillis() < expiryStore.get(email)) {
+                boolean isValid = otpStore.get(email).equals(String.valueOf(otp));
+                if (isValid) {
+                    otpStore.remove(email);
+                    expiryStore.remove(email);
+                }
+                return isValid;
+            } else {
+
+                // OTP expired, remove from store
+                otpStore.remove(email);
+                expiryStore.remove(email);
+            }
+        }
+        return false;
+    }
+
+    
+
+    // HELPER METHODS ========================
+
+    // create new user
+    private User createUser(String email, String password_hash) {
+        User user = User.builder()
+                        .email(email)
+                        .password_hash(password_hash.getBytes())
+                        .build();
+        return user;
+    }
+
+    // verify user credentials
+    public boolean verifyCredentials(String email, String password_hash) {
+        User user = userRepo.findByEmail(email);
+        if (user != null) {
+            return new String(user.getPassword_hash()).equals(password_hash);
+        }
+        return false;
+    }
+
+    // OTP generator
+    private int generateOTP() {
+        // generate a random 6-digit OTP
+        int otp = (int)(Math.random() * 900000) + 100000;
+        return otp;
+    }
+    
+}
