@@ -13,4 +13,7 @@ public interface FriendChatRepository extends JpaRepository<FriendChat, UUID> {
     List<FriendChat> findAllByUserId(@Param("userId") UUID userId);
     
     FriendChat findByUser1IdAndUser2Id(UUID user1Id, UUID user2Id);
+
+    @Query("SELECT c FROM FriendChat c WHERE (c.user1Id = :userA AND c.user2Id = :userB) OR (c.user1Id = :userB AND c.user2Id = :userA)")
+    Optional<FriendChat> findByUsers(@Param("userA") UUID userA, @Param("userB") UUID userB);
 }

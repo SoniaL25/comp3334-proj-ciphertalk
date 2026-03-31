@@ -27,7 +27,4 @@ public class FriendChat {
 
     private LocalDateTime created_at;
 
-    @Column(name = "blocked_id")
-    private int blockedId; // 0 for no one, 1 for user1, 2 for user2
-    
 }

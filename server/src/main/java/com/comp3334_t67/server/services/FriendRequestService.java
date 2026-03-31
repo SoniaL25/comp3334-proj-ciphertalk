@@ -128,7 +128,6 @@ public class FriendRequestService {
             .user1Id(user1Id)
             .user2Id(user2Id)
             .created_at(LocalDateTime.now())
-            .blockedId(0)
             .build();
         return chatRepo.save(friendChat);
     }

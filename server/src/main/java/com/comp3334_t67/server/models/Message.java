@@ -32,7 +32,6 @@ public class Message {
     private String nouce;
 
     private String content_hashed;
-    private LocalDateTime timestamp;
 
     @Enumerated(EnumType.STRING)
     private MessageStatus status; // "sent", "delivered", "read"

@@ -7,28 +7,33 @@ import com.comp3334_t67.server.dtos.*;
 import com.comp3334_t67.server.services.*;
 
 import jakarta.servlet.http.*;
+import java.time.Duration;
 import java.util.*;
 
 
 
 @RestController
-@RequestMapping("/api/friends")
+@RequestMapping("/api/requests")
 @AllArgsConstructor
-public class FriendController {
+public class FriendRequestController {
 
     private final FriendRequestService friendService;
+    private final RateLimitService rateLimitService;
 
-    @PostMapping("/requests")
+    @PostMapping("/send")
     public void sendFriendRequest(@RequestBody FriendReqRequest requestDto) {
+        String key = "friend-request:" + requestDto.getSenderEmail();
+        rateLimitService.assertAllowed(key, 30, Duration.ofMinutes(10));
+
         friendService.sendFriendRequest(requestDto.getSenderEmail(), requestDto.getReceiverEmail());
     }
 
-    @PutMapping("/requests/{requestId}/respond")
+    @PutMapping("/{requestId}/respond")
     public void respondToFriendRequest(@PathVariable String requestId, @RequestBody ActionRequest requestDto) {
         friendService.respondToFriendRequest(requestId, requestDto.isAccepted());
     }
 
-    @PutMapping("/requests/{requestId}/cancel")
+    @PutMapping("/{requestId}/cancel")
     public void cancelFriendRequest(@PathVariable String requestId, HttpSession session) {
         String senderEmail = (String) session.getAttribute("email");
         if (senderEmail == null) {
@@ -37,7 +42,7 @@ public class FriendController {
         friendService.cancelFriendRequest(senderEmail, requestId);
     }
 
-    @GetMapping("/requests/incoming")
+    @GetMapping("/incoming")
     public List<FriendRequestDto> getAllIncomingRequests(HttpSession session) {
         String receiverEmail = (String) session.getAttribute("email");
         if (receiverEmail == null) {
@@ -46,7 +51,7 @@ public class FriendController {
         return friendService.getIncomingFriendRequests(receiverEmail);
     }
 
-    @GetMapping("/requests/outgoing")
+    @GetMapping("/outgoing")
     public List<FriendRequestDto> getAllOutgoingRequests(HttpSession session) {
         String senderEmail = (String) session.getAttribute("email");
         if (senderEmail == null) {

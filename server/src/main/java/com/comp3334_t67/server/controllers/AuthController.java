@@ -6,6 +6,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.*;
+import java.time.Duration;
 import java.util.List;
 
 import com.comp3334_t67.server.dtos.*;
@@ -20,10 +21,14 @@ import lombok.AllArgsConstructor;
 public class AuthController {
 
     private final AuthService authService;
+    private final RateLimitService rateLimitService;
 
     // Register
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Void>> register(@RequestBody AuthRequest registerRequest) {
+        String key = "register:" + registerRequest.getEmail();
+        rateLimitService.assertAllowed(key, 5, Duration.ofMinutes(15));
+
         authService.register(registerRequest.getEmail(), registerRequest.getPassword_hash());
         return ResponseEntity.ok(ApiResponse.success("User registered successfully", null));
     }
@@ -31,6 +36,9 @@ public class AuthController {
     // login
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Void>> login(HttpServletRequest request, @RequestBody AuthRequest loginRequest) {
+        String key = "login:" + loginRequest.getEmail();
+        rateLimitService.assertAllowed(key, 10, Duration.ofMinutes(15));
+
         authService.login(loginRequest.getEmail(), loginRequest.getPassword_hash());
 
         // Store temporary auth state in session

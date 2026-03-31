@@ -58,7 +58,7 @@ public class MessageService {
             .content_hashed(content)
             .nouce(nouce)
             .status(MessageStatus.SENT)
-            .timestamp(LocalDateTime.now())
+            .created_at(LocalDateTime.now())
             .build();
         
         return message;
