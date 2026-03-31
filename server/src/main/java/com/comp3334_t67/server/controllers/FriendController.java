@@ -6,41 +6,53 @@ import lombok.*;
 import com.comp3334_t67.server.dtos.*;
 import com.comp3334_t67.server.services.*;
 
+import jakarta.servlet.http.*;
+import java.util.*;
+
+
 
 @RestController
 @RequestMapping("/api/friends")
 @AllArgsConstructor
 public class FriendController {
 
-    // private final FriendService friendService;
+    private final FriendRequestService friendService;
 
-    // @PostMapping("/requests")
-    // public void sendFriendRequest(@RequestBody FriendRequestDto requestDto) {
-    //     friendService.sendFriendRequest(requestDto.getSenderEmail(), requestDto.getReceiverEmail());
-    // }
+    @PostMapping("/requests")
+    public void sendFriendRequest(@RequestBody FriendReqRequest requestDto) {
+        friendService.sendFriendRequest(requestDto.getSenderEmail(), requestDto.getReceiverEmail());
+    }
 
-    // @PostMapping("/requests/respond")
-    // public void respondToFriendRequest(@RequestBody FriendRequestResponseDto requestDto) {
-    //     friendService.respondToFriendRequest(requestDto.getRequestId(), requestDto.isAccepted());
-    // }
+    @PutMapping("/requests/{requestId}/respond")
+    public void respondToFriendRequest(@PathVariable String requestId, @RequestBody ActionRequest requestDto) {
+        friendService.respondToFriendRequest(requestId, requestDto.isAccepted());
+    }
 
-    // @PostMapping("/requests/cancel")
-    // public void cancelFriendRequest(@RequestBody CancelFriendRequestDto requestDto) {
-    //     friendService.cancelFriendRequest(requestDto.getSenderEmail(), requestDto.getRequestId());
-    // }
+    @PutMapping("/requests/{requestId}/cancel")
+    public void cancelFriendRequest(@PathVariable String requestId, HttpSession session) {
+        String senderEmail = (String) session.getAttribute("email");
+        if (senderEmail == null) {
+            throw new IllegalStateException("No OTP verification in progress");
+        }
+        friendService.cancelFriendRequest(senderEmail, requestId);
+    }
 
-    // TODO: change both
-    // @GetMapping("/requests/incoming")
-    // public List<FriendRequestDto> getAllIncomingRequests(@RequestBody String receiverEmail) {
-    //     return friendService.getAllIncomingRequests(receiverEmail);
-    // }
+    @GetMapping("/requests/incoming")
+    public List<FriendRequestDto> getAllIncomingRequests(HttpSession session) {
+        String receiverEmail = (String) session.getAttribute("email");
+        if (receiverEmail == null) {
+            throw new IllegalStateException("No OTP verification in progress");
+        }
+        return friendService.getIncomingFriendRequests(receiverEmail);
+    }
 
-    // @GetMapping("/requests/outgoing")
-    // public List<FriendRequestDto> getAllOutgoingRequests(@RequestBody String senderEmail) {
-    //     return friendService.getAllOutgoingRequests(senderEmail);
-    // }
-    
-    
-
+    @GetMapping("/requests/outgoing")
+    public List<FriendRequestDto> getAllOutgoingRequests(HttpSession session) {
+        String senderEmail = (String) session.getAttribute("email");
+        if (senderEmail == null) {
+            throw new IllegalStateException("No OTP verification in progress");
+        }
+        return friendService.getOutgoingFriendRequests(senderEmail);
+    }
 
 }

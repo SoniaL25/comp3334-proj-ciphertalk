@@ -3,6 +3,7 @@ package com.comp3334_t67.server.services;
 import java.time.*;
 import java.util.*;
 
+import com.comp3334_t67.server.dtos.FriendRequestDto;
 import com.comp3334_t67.server.enums.*;
 import com.comp3334_t67.server.models.*;
 import com.comp3334_t67.server.repos.*;
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @AllArgsConstructor
-public class FriendService {
+public class FriendRequestService {
 
     // TODO: add logging and error handling
 
@@ -33,9 +34,9 @@ public class FriendService {
     }
 
     // Reponse to friend request
-    public void respondToFriendRequest(UUID requestId, boolean accept) {
+    public void respondToFriendRequest(String requestId, boolean accept) {
         // find the friend request by id
-        Optional<FriendRequest> optionalFriendRequest = requestRepo.findById(requestId);
+        Optional<FriendRequest> optionalFriendRequest = requestRepo.findById(UUID.fromString(requestId));
 
         if (optionalFriendRequest.isPresent() && optionalFriendRequest.get().getStatus() == FriendRequestStatus.PENDING) {
             FriendRequest friendRequest = optionalFriendRequest.get();
@@ -56,10 +57,10 @@ public class FriendService {
     }
 
     // Cancel friend request
-    public void cancelFriendRequest(String senderEmail, UUID requestId) {
+    public void cancelFriendRequest(String senderEmail, String requestId) {
         UUID senderId = requireUserIdByEmail(senderEmail);
         // find friend request by id
-        Optional<FriendRequest> optionalFriendRequest = requestRepo.findById(requestId);
+        Optional<FriendRequest> optionalFriendRequest = requestRepo.findById(UUID.fromString(requestId));
         if (optionalFriendRequest.isPresent() && optionalFriendRequest.get().getStatus() == FriendRequestStatus.PENDING) {
             FriendRequest friendRequest = optionalFriendRequest.get();
             // check if the senderId matches the senderId of the friend request
@@ -73,54 +74,30 @@ public class FriendService {
     }
 
     // Get all incoming friend requests
-    public List<FriendRequest> getIncomingFriendRequests(String userEmail) {
+    public List<FriendRequestDto> getIncomingFriendRequests(String userEmail) {
         UUID userId = requireUserIdByEmail(userEmail);
         // find all friend requests where the receiver is the user and status is PENDING
-        return requestRepo.findByReceiverIdAndStatus(userId, FriendRequestStatus.PENDING);
+        List<FriendRequest> friendRequests = requestRepo.findByReceiverIdAndStatus(userId, FriendRequestStatus.PENDING);
+        List<FriendRequestDto> friendRequestDtos = new ArrayList<>();
+        for (FriendRequest friendRequest : friendRequests) {
+            friendRequestDtos.add(convertToDto(friendRequest));
+        }
+        return friendRequestDtos;
     }
 
     // Get all outgoing friend requests
-    public List<FriendRequest> getOutgoingFriendRequests(String userEmail) {
+    public List<FriendRequestDto> getOutgoingFriendRequests(String userEmail) {
         UUID userId = requireUserIdByEmail(userEmail);
         // find all friend requests where the sender is the user and status is PENDING
-        return requestRepo.findBySenderIdAndStatus(userId, FriendRequestStatus.PENDING);
-    }
-
-    // Block a friend
-    public void blockFriend(UUID chatId, String blockUserEmail) {
-        UUID blockUser = requireUserIdByEmail(blockUserEmail);
-        // find the friend chat by id
-        Optional<FriendChat> optionalFriendChat = chatRepo.findById(chatId);
-
-        if (optionalFriendChat.isPresent()) {
-            FriendChat friendChat = optionalFriendChat.get();
-            // check if the user is part of the friend chat
-            if (friendChat.getUser1Id().equals(blockUser)) {
-                friendChat.setBlockedId(1); // block user1
-            } else if (friendChat.getUser2Id().equals(blockUser)) {
-                friendChat.setBlockedId(2); // block user2
-            }
-            // save the updated friend chat to the database
-            chatRepo.save(friendChat);
+        List<FriendRequest> friendRequests = requestRepo.findBySenderIdAndStatus(userId, FriendRequestStatus.PENDING);
+        List<FriendRequestDto> friendRequestDtos = new ArrayList<>();
+        for (FriendRequest friendRequest : friendRequests) {
+            friendRequestDtos.add(convertToDto(friendRequest));
         }
+        return friendRequestDtos;
     }
 
-    // Get all friend chats for a user
-    public List<FriendChat> getFriendChats(String userEmail) {
-        UUID userId = requireUserIdByEmail(userEmail);
-        // find all friend chats where the user is either user1 or user2
-        return chatRepo.findAllByUserId(userId);
-    }
-
-    // Check if two users are friends
-    public boolean areFriends(String userEmail1, String userEmail2) {
-        UUID userId1 = requireUserIdByEmail(userEmail1);
-        UUID userId2 = requireUserIdByEmail(userEmail2);
-        // check if there is a friend chat between the two users
-        FriendChat friendChat = chatRepo.findByUser1IdAndUser2Id(userId1, userId2);
-        return friendChat != null;
-    }
-
+    
     // HELPER METHODS ============================
 
     // Get user id by email, throw exception if user not found
@@ -154,6 +131,16 @@ public class FriendService {
             .blockedId(0)
             .build();
         return chatRepo.save(friendChat);
+    }
+
+    // Convert FriendRequest to FriendRequestDto
+    private FriendRequestDto convertToDto(FriendRequest friendRequest) {
+        FriendRequestDto dto = new FriendRequestDto();
+        dto.setSenderId(friendRequest.getSenderId());
+        dto.setReceiverId(friendRequest.getReceiverId());
+        dto.setStatus(friendRequest.getStatus());
+        dto.setCreated_at(friendRequest.getCreated_at());
+        return dto;
     }
 
 }
