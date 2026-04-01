@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import com.comp3334_t67.server.models.BlockedUser;
 import com.comp3334_t67.server.models.User;
+import com.comp3334_t67.server.dtos.UserDto;
 import com.comp3334_t67.server.repos.*;
 
 import lombok.AllArgsConstructor;
@@ -17,6 +18,21 @@ public class UserService {
     private final UserRepository userRepo;
     private final BlockedUserRepository blockedUserRepo;
 
+    // Get user by ID
+    public UserDto getUserInfoById(String userId) {
+        User user = requireUserById(userId);
+        return UserDto.builder()
+                .email(user.getEmail())
+                .build();
+    }
+
+    // Delete user by ID
+    public void deleteUserById(String userId) {
+        User user = requireUserById(userId);
+        userRepo.delete(user);
+    }
+
+    // Update user's public key
     public void uploadPublicKey(String userId, String publicKey) {
         User user = requireUserById(userId);
         
@@ -24,12 +40,14 @@ public class UserService {
         userRepo.save(user);
     }
 
+    // Get user's public key
     public String getPublicKey(String userId) {
         User user = requireUserById(userId);
         
         return user.getIdentity_public_key();
     }
 
+    // Block another user
     public void blockUser(String blockerEmail, String blockedEmail) {
         User blocker = requireUserByEmail(blockerEmail);
         User blocked = requireUserByEmail(blockedEmail);
@@ -49,6 +67,7 @@ public class UserService {
         }
     }
 
+    // Unblock another user
     public void unblockUser(String blockerEmail, String blockedEmail) {
         User blocker = requireUserByEmail(blockerEmail);
         User blocked = requireUserByEmail(blockedEmail);
@@ -56,6 +75,9 @@ public class UserService {
         blockedUserRepo.deleteByUserIdAndBlockedUserId(blocker.getId(), blocked.getId());
     }
 
+    // HELPER METHODS ========================
+
+    // Get user by ID, throw exception if not found
     private User requireUserById(String userId) {
         UUID userUuid = UUID.fromString(userId);
         User user = userRepo.findById(userUuid).orElse(null);
@@ -65,6 +87,7 @@ public class UserService {
         return user;
     }
 
+    // Get user by email, throw exception if not found
     private User requireUserByEmail(String email) {
         User user = userRepo.findByEmail(email);
         if (user == null) {

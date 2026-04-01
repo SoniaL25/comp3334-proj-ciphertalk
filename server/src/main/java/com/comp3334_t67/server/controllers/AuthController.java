@@ -20,6 +20,9 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public class AuthController {
 
+    private final int RATE_LIMIT_WINDOW = 5;
+    private final int RATE_LIMIT_LIMIT = 10;
+
     private final AuthService authService;
     private final RateLimitService rateLimitService;
 
@@ -27,7 +30,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Void>> register(@RequestBody AuthRequest registerRequest) {
         String key = "register:" + registerRequest.getEmail();
-        rateLimitService.assertAllowed(key, 5, Duration.ofMinutes(15));
+        rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
 
         authService.register(registerRequest.getEmail(), registerRequest.getPassword_hash());
         return ResponseEntity.ok(ApiResponse.success("User registered successfully", null));
@@ -37,7 +40,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Void>> login(HttpServletRequest request, @RequestBody AuthRequest loginRequest) {
         String key = "login:" + loginRequest.getEmail();
-        rateLimitService.assertAllowed(key, 10, Duration.ofMinutes(15));
+        rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
 
         authService.login(loginRequest.getEmail(), loginRequest.getPassword_hash());
 

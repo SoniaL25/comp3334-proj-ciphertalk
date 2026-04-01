@@ -10,12 +10,13 @@ import jakarta.servlet.http.*;
 import java.time.Duration;
 import java.util.*;
 
-
-
 @RestController
 @RequestMapping("/api/requests")
 @AllArgsConstructor
 public class FriendRequestController {
+
+    private final int RATE_LIMIT_WINDOW = 5;
+    private final int RATE_LIMIT_LIMIT = 10;
 
     private final FriendRequestService friendService;
     private final RateLimitService rateLimitService;
@@ -23,7 +24,7 @@ public class FriendRequestController {
     @PostMapping("/send")
     public void sendFriendRequest(@RequestBody FriendReqRequest requestDto) {
         String key = "friend-request:" + requestDto.getSenderEmail();
-        rateLimitService.assertAllowed(key, 30, Duration.ofMinutes(10));
+        rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
 
         friendService.sendFriendRequest(requestDto.getSenderEmail(), requestDto.getReceiverEmail());
     }

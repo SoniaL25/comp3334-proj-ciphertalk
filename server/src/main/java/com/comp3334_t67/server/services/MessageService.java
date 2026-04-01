@@ -14,6 +14,8 @@ import java.util.*;
 @Service
 @AllArgsConstructor
 public class MessageService {
+
+    private final int MESSAGE_EXPIRATION_MINUTES = 10;
     
     private final MessageRepository messageRepo;
     private final FriendChatRepository chatRepo;
@@ -59,6 +61,7 @@ public class MessageService {
             .nouce(nouce)
             .status(MessageStatus.SENT)
             .created_at(LocalDateTime.now())
+            .expires_at(LocalDateTime.now().plusMinutes(MESSAGE_EXPIRATION_MINUTES))
             .build();
         
         return message;

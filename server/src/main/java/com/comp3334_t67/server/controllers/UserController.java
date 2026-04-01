@@ -17,6 +17,11 @@ public class UserController {
 
     // ACCESS SELF INFO
 
+    @GetMapping("/{user-id}")
+    public ResponseEntity<ApiResponse<UserDto>> getUserInfo(@PathVariable String userId) {
+        return ResponseEntity.ok(ApiResponse.success("User info retrieved successfully", userService.getUserInfoById(userId)));
+    }
+
     @PostMapping("/{user-id}/public-key")
     public ResponseEntity<ApiResponse<Void>> uploadPublicKey(@PathVariable String userId, @RequestBody UploadPublicKeyRequest request) {
         userService.uploadPublicKey(userId, request.getPublicKey());
