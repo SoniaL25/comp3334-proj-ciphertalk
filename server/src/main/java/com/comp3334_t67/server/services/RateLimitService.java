@@ -1,6 +1,7 @@
 package com.comp3334_t67.server.services;
 
 import org.springframework.stereotype.Service;
+import com.comp3334_t67.server.Exceptions.RateLimitExceededException;
 
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -29,7 +30,7 @@ public class RateLimitService {
             }
             // Check if the number of timestamps in the current window exceeds the limit
             if (timestamps.size() >= limit) {
-                throw new IllegalStateException("Rate limit exceeded. Please try again later.");
+                throw new RateLimitExceededException("Rate limit exceeded. Please try again later.");
             }
             
             // Add the current timestamp to the deque

@@ -3,6 +3,7 @@ package com.comp3334_t67.server.controllers;
 import org.springframework.web.bind.annotation.*;
 import lombok.*;
 
+import com.comp3334_t67.server.Exceptions.OtpSessionMissingException;
 import com.comp3334_t67.server.dtos.*;
 import com.comp3334_t67.server.services.*;
 
@@ -38,7 +39,7 @@ public class FriendRequestController {
     public void cancelFriendRequest(@PathVariable String requestId, HttpSession session) {
         String senderEmail = (String) session.getAttribute("email");
         if (senderEmail == null) {
-            throw new IllegalStateException("No OTP verification in progress");
+            throw new OtpSessionMissingException("No OTP verification in progress");
         }
         friendService.cancelFriendRequest(senderEmail, requestId);
     }
@@ -47,7 +48,7 @@ public class FriendRequestController {
     public List<FriendRequestDto> getAllIncomingRequests(HttpSession session) {
         String receiverEmail = (String) session.getAttribute("email");
         if (receiverEmail == null) {
-            throw new IllegalStateException("No OTP verification in progress");
+            throw new OtpSessionMissingException("No OTP verification in progress");
         }
         return friendService.getIncomingFriendRequests(receiverEmail);
     }
@@ -56,7 +57,7 @@ public class FriendRequestController {
     public List<FriendRequestDto> getAllOutgoingRequests(HttpSession session) {
         String senderEmail = (String) session.getAttribute("email");
         if (senderEmail == null) {
-            throw new IllegalStateException("No OTP verification in progress");
+            throw new OtpSessionMissingException("No OTP verification in progress");
         }
         return friendService.getOutgoingFriendRequests(senderEmail);
     }

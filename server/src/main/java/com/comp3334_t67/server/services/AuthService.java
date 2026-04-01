@@ -4,6 +4,8 @@ package com.comp3334_t67.server.services;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import com.comp3334_t67.server.Exceptions.InvalidCredentialsException;
+import com.comp3334_t67.server.Exceptions.UserAlreadyExistsException;
 import com.comp3334_t67.server.models.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +28,7 @@ public class AuthService {
 
         // check if user already exists
         if (userRepo.findByEmail(email) != null) {
-            throw new IllegalArgumentException("User with this email already exists");
+            throw new UserAlreadyExistsException("User with this email already exists");
         }
 
         // create a new user with the provided email and password hash
@@ -40,7 +42,7 @@ public class AuthService {
 
         // verify user credentials
         if (!verifyCredentials(email, password_hash)) {
-            throw new IllegalArgumentException("Invalid email or password");
+            throw new InvalidCredentialsException("Invalid email or password");
         }
 
         // generate OTP and store it in memory with an expiry time

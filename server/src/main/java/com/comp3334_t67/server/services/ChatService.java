@@ -5,6 +5,12 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.comp3334_t67.server.Exceptions.ChatMembershipException;
+import com.comp3334_t67.server.Exceptions.ChatNotFoundException;
+import com.comp3334_t67.server.Exceptions.MessageValidationException;
+import com.comp3334_t67.server.Exceptions.MessagingBlockedException;
+import com.comp3334_t67.server.Exceptions.UserNotFoundException;
+import com.comp3334_t67.server.Exceptions.UsersNotFriendsException;
 import com.comp3334_t67.server.enums.FriendRequestStatus;
 import com.comp3334_t67.server.enums.MessageStatus;
 import com.comp3334_t67.server.dtos.FriendChatDto;
@@ -35,16 +41,16 @@ public class ChatService {
 
         UUID senderId = requireUserIdByEmail(senderEmail);
         FriendChat chat = chatRepo.findById(UUID.fromString(chatId))
-            .orElseThrow(() -> new IllegalArgumentException("Chat not found"));
+            .orElseThrow(() -> new ChatNotFoundException("Chat not found"));
 
         UUID receiverId = resolveCounterparty(chat, senderId);
 
         if (!areAcceptedFriends(senderId, receiverId)) {
-            throw new IllegalStateException("Users are not accepted friends");
+            throw new UsersNotFriendsException("Users are not accepted friends");
         }
 
         if (isBlocked(senderId, receiverId)) {
-            throw new IllegalStateException("Messaging is blocked between these users");
+            throw new MessagingBlockedException("Messaging is blocked between these users");
         }
 
         Message message = Message.builder()
@@ -71,7 +77,7 @@ public class ChatService {
             FriendChat friendChat = optionalFriendChat.get();
 
             if (!friendChat.getUser1Id().equals(requesterId) && !friendChat.getUser2Id().equals(requesterId)) {
-                throw new IllegalArgumentException("User does not belong to this chat");
+                throw new ChatMembershipException("User does not belong to this chat");
             }
 
             // delete the friend chat from the database
@@ -125,7 +131,7 @@ public class ChatService {
             // Get timestamp of the last message in the chat, or use chat creation time if no messages
             LocalDateTime lastMessageDateTime = messageRepo.findTopByChatIdOrderByCreated_atDesc(chat.getId())
                 .map(Message::getCreated_at)
-                .orElseThrow(() -> new IllegalArgumentException("No messages found for chat: " + chat.getId())  );
+                .orElse(chat.getCreated_at());
 
             result.add(
                 FriendChatDto.builder()
@@ -158,7 +164,7 @@ public class ChatService {
     private UUID requireUserIdByEmail(String email) {
         User user = userRepo.findByEmail(email);
         if (user == null) {
-            throw new IllegalArgumentException("User with email " + email + " not found");
+            throw new UserNotFoundException("User with email " + email + " not found");
         }
         return user.getId();
     }
@@ -170,7 +176,7 @@ public class ChatService {
         if (chat.getUser2Id().equals(senderId)) {
             return chat.getUser1Id();
         }
-        throw new IllegalArgumentException("Sender does not belong to the chat");
+        throw new ChatMembershipException("Sender does not belong to the chat");
     }
 
     private boolean areAcceptedFriends(UUID userA, UUID userB) {
@@ -190,27 +196,27 @@ public class ChatService {
         try {
             UUID.fromString(chatId);
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid chatId format");
+            throw new MessageValidationException("Invalid chatId format");
         }
 
         if (content == null || content.isBlank()) {
-            throw new IllegalArgumentException("Message content cannot be empty");
+            throw new MessageValidationException("Message content cannot be empty");
         }
 
         if (content.length() > MAX_MESSAGE_HASH_LENGTH) {
-            throw new IllegalArgumentException("Message content exceeds size limit");
+            throw new MessageValidationException("Message content exceeds size limit");
         }
 
         if (!content.matches(HASH_FORMAT_REGEX)) {
-            throw new IllegalArgumentException("Malformed message content format");
+            throw new MessageValidationException("Malformed message content format");
         }
 
         if (nouce == null || nouce.isBlank()) {
-            throw new IllegalArgumentException("Nonce cannot be empty");
+            throw new MessageValidationException("Nonce cannot be empty");
         }
 
         if (nouce.length() > MAX_NONCE_LENGTH) {
-            throw new IllegalArgumentException("Nonce exceeds size limit");
+            throw new MessageValidationException("Nonce exceeds size limit");
         }
     }
 

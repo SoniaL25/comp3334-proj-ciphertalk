@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import com.comp3334_t67.server.Exceptions.SelfBlockNotAllowedException;
+import com.comp3334_t67.server.Exceptions.UserNotFoundException;
 import com.comp3334_t67.server.models.BlockedUser;
 import com.comp3334_t67.server.models.User;
 import com.comp3334_t67.server.dtos.UserDto;
@@ -53,7 +55,7 @@ public class UserService {
         User blocked = requireUserByEmail(blockedEmail);
 
         if (blocker.getId().equals(blocked.getId())) {
-            throw new IllegalArgumentException("User cannot block self");
+            throw new SelfBlockNotAllowedException("User cannot block self");
         }
 
         if (!blockedUserRepo.existsByUserIdAndBlockedUserId(blocker.getId(), blocked.getId())) {
@@ -82,7 +84,7 @@ public class UserService {
         UUID userUuid = UUID.fromString(userId);
         User user = userRepo.findById(userUuid).orElse(null);
         if (user == null) {
-            throw new RuntimeException("User not found with ID: " + userId);
+            throw new UserNotFoundException("User not found with ID: " + userId);
         }
         return user;
     }
@@ -91,7 +93,7 @@ public class UserService {
     private User requireUserByEmail(String email) {
         User user = userRepo.findByEmail(email);
         if (user == null) {
-            throw new IllegalArgumentException("User with email " + email + " not found");
+            throw new UserNotFoundException("User with email " + email + " not found");
         }
         return user;
     }

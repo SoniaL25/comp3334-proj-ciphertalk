@@ -3,6 +3,10 @@ package com.comp3334_t67.server.services;
 import java.time.*;
 import java.util.*;
 
+import com.comp3334_t67.server.Exceptions.FriendRequestNotFoundException;
+import com.comp3334_t67.server.Exceptions.FriendRequestOwnershipException;
+import com.comp3334_t67.server.Exceptions.FriendRequestStateException;
+import com.comp3334_t67.server.Exceptions.UserNotFoundException;
 import com.comp3334_t67.server.dtos.FriendRequestDto;
 import com.comp3334_t67.server.enums.*;
 import com.comp3334_t67.server.models.*;
@@ -36,41 +40,49 @@ public class FriendRequestService {
     // Reponse to friend request
     public void respondToFriendRequest(String requestId, boolean accept) {
         // find the friend request by id
-        Optional<FriendRequest> optionalFriendRequest = requestRepo.findById(UUID.fromString(requestId));
+        FriendRequest friendRequest = requestRepo.findById(UUID.fromString(requestId))
+            .orElseThrow(() -> new FriendRequestNotFoundException("Friend request not found"));
 
-        if (optionalFriendRequest.isPresent() && optionalFriendRequest.get().getStatus() == FriendRequestStatus.PENDING) {
-            FriendRequest friendRequest = optionalFriendRequest.get();
-            // update the status of the friend request based on the response
-            if (accept) {
-                friendRequest.setStatus(FriendRequestStatus.ACCEPTED);
-                friendRequest.setResponded_at(LocalDateTime.now());
-                // add each other to friends list (not implemented here)
-                FriendChat friendChat = createFriendChat(friendRequest.getSenderId(), friendRequest.getReceiverId());
-                chatRepo.save(friendChat);
-
-            } else {
-                friendRequest.setStatus(FriendRequestStatus.REJECTED);
-            }
-            // save the updated friend request to the database
-            requestRepo.save(friendRequest);
+        if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
+            throw new FriendRequestStateException("Friend request is not pending");
         }
+
+        // update the status of the friend request based on the response
+        if (accept) {
+            friendRequest.setStatus(FriendRequestStatus.ACCEPTED);
+            friendRequest.setResponded_at(LocalDateTime.now());
+            // add each other to friends list (not implemented here)
+            FriendChat friendChat = createFriendChat(friendRequest.getSenderId(), friendRequest.getReceiverId());
+            chatRepo.save(friendChat);
+
+        } else {
+            friendRequest.setStatus(FriendRequestStatus.REJECTED);
+        }
+
+        // save the updated friend request to the database
+        requestRepo.save(friendRequest);
     }
 
     // Cancel friend request
     public void cancelFriendRequest(String senderEmail, String requestId) {
         UUID senderId = requireUserIdByEmail(senderEmail);
         // find friend request by id
-        Optional<FriendRequest> optionalFriendRequest = requestRepo.findById(UUID.fromString(requestId));
-        if (optionalFriendRequest.isPresent() && optionalFriendRequest.get().getStatus() == FriendRequestStatus.PENDING) {
-            FriendRequest friendRequest = optionalFriendRequest.get();
-            // check if the senderId matches the senderId of the friend request
-            if (friendRequest.getSenderId().equals(senderId)) {
-                // update the status of the friend request to CANCELED
-                friendRequest.setStatus(FriendRequestStatus.CANCELED);
-                // save the updated friend request to the database
-                requestRepo.save(friendRequest);
-            }
+        FriendRequest friendRequest = requestRepo.findById(UUID.fromString(requestId))
+            .orElseThrow(() -> new FriendRequestNotFoundException("Friend request not found"));
+
+        if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
+            throw new FriendRequestStateException("Friend request is not pending");
         }
+
+        // check if the senderId matches the senderId of the friend request
+        if (!friendRequest.getSenderId().equals(senderId)) {
+            throw new FriendRequestOwnershipException("Only the sender can cancel this friend request");
+        }
+
+        // update the status of the friend request to CANCELED
+        friendRequest.setStatus(FriendRequestStatus.CANCELED);
+        // save the updated friend request to the database
+        requestRepo.save(friendRequest);
     }
 
     // Get all incoming friend requests
@@ -104,7 +116,7 @@ public class FriendRequestService {
     private UUID requireUserIdByEmail(String email) {
         User user = userRepo.findByEmail(email);
         if (user == null) {
-            throw new IllegalArgumentException("User with email " + email + " not found");
+            throw new UserNotFoundException("User with email " + email + " not found");
         }
         return user.getId();
     }

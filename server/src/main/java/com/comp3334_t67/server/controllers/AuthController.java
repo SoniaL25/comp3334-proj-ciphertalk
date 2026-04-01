@@ -9,6 +9,8 @@ import jakarta.servlet.http.*;
 import java.time.Duration;
 import java.util.List;
 
+import com.comp3334_t67.server.Exceptions.OtpInvalidException;
+import com.comp3334_t67.server.Exceptions.OtpSessionMissingException;
 import com.comp3334_t67.server.dtos.*;
 import com.comp3334_t67.server.services.*;
 
@@ -57,17 +59,17 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> verifyOtp(HttpServletRequest request, @RequestBody OtpVerificationRequest otpRequest) {
         HttpSession session = request.getSession(false);
         if (session == null) {
-            throw new IllegalStateException("No active session");
+            throw new OtpSessionMissingException("No active session");
         }
 
         String email = (String) session.getAttribute("OTP_USER");
         if (email == null) {
-            throw new IllegalStateException("No OTP verification in progress");
+            throw new OtpSessionMissingException("No OTP verification in progress");
         }
 
         boolean isValid = authService.verifyOtp(email, otpRequest.getOtp());
         if (!isValid) {
-            throw new IllegalArgumentException("Invalid OTP");
+            throw new OtpInvalidException("Invalid OTP");
         }
 
         // Mark OTP as verified
