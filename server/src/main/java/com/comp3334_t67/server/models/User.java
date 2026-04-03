@@ -18,9 +18,13 @@ public class User {
     private UUID id;
 
     private String email;
-    private byte[] password_hash;
+    @Column(name = "password_hash")
+    private byte[] passwordHash;
 
-    private String identity_public_key;
-    private LocalDateTime key_updated_at;
+    @Column(name = "identity_public_key")
+    private String identityPublicKey;
+
+    @Column(name = "key_updated_at")
+    private LocalDateTime keyUpdatedAt;
     
 }

@@ -29,16 +29,25 @@ public class Message {
     @Column(name = "receiver_id")
     private UUID receiverId;
 
-    private String nouce;
+    @Column(name = "nonce")
+    private String nonce;
 
-    private String content_hashed;
+    @Column(name = "content_hashed")
+    private String contentHashed;
 
     @Enumerated(EnumType.STRING)
     private MessageStatus status; // "sent", "delivered", "read"
 
-    private LocalDateTime created_at;
-    private LocalDateTime expires_at;
-    private LocalDateTime delivered_at;
-    private LocalDateTime read_at;
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
+
+    @Column(name = "read_at")
+    private LocalDateTime readAt;
 
 }

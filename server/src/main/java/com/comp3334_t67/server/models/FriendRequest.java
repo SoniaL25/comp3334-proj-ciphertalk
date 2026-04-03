@@ -28,6 +28,10 @@ public class FriendRequest {
 
     @Enumerated(EnumType.STRING)
     private FriendRequestStatus status; // "pending", "accepted", "rejected", "canceled"
-    private LocalDateTime created_at;
-    private LocalDateTime responded_at;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "responded_at")
+    private LocalDateTime respondedAt;
 }

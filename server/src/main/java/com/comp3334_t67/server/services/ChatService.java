@@ -36,8 +36,8 @@ public class ChatService {
     private final UserRepository userRepo;
 
     // send message
-    public void sendMessage(String chatId, String senderEmail, String content, String nouce) {
-        validateSendMessageInput(chatId, content, nouce);
+    public void sendMessage(String chatId, String senderEmail, String content, String nonce) {
+        validateSendMessageInput(chatId, content, nonce);
 
         UUID senderId = requireUserIdByEmail(senderEmail);
         FriendChat chat = chatRepo.findById(UUID.fromString(chatId))
@@ -57,10 +57,10 @@ public class ChatService {
             .chatId(chat.getId())
             .senderId(senderId)
             .receiverId(receiverId)
-            .content_hashed(content)
-            .nouce(nouce)
+            .contentHashed(content)
+            .nonce(nonce)
             .status(MessageStatus.SENT)
-            .created_at(LocalDateTime.now())
+            .createdAt(LocalDateTime.now())
             .build();
 
         messageRepo.save(message);
@@ -123,15 +123,15 @@ public class ChatService {
                 LocalDateTime deliveredAt = LocalDateTime.now();
                 for (Message message : unreadMessages) {
                     message.setStatus(MessageStatus.DELIVERED);
-                    message.setDelivered_at(deliveredAt);
+                    message.setDeliveredAt(deliveredAt);
                 }
                 messageRepo.saveAll(unreadMessages);
             }
 
             // Get timestamp of the last message in the chat, or use chat creation time if no messages
-            LocalDateTime lastMessageDateTime = messageRepo.findTopByChatIdOrderByCreated_atDesc(chat.getId())
-                .map(Message::getCreated_at)
-                .orElse(chat.getCreated_at());
+            LocalDateTime lastMessageDateTime = messageRepo.findTopByChatIdOrderByCreatedAtDesc(chat.getId())
+                .map(Message::getCreatedAt)
+                .orElse(chat.getCreatedAt());
 
             result.add(
                 FriendChatDto.builder()
@@ -192,7 +192,7 @@ public class ChatService {
             || blockedUserRepo.existsByUserIdAndBlockedUserId(userB, userA);
     }
 
-    private void validateSendMessageInput(String chatId, String content, String nouce) {
+    private void validateSendMessageInput(String chatId, String content, String nonce) {
         try {
             UUID.fromString(chatId);
         } catch (IllegalArgumentException ex) {
@@ -211,11 +211,11 @@ public class ChatService {
             throw new MessageValidationException("Malformed message content format");
         }
 
-        if (nouce == null || nouce.isBlank()) {
+        if (nonce == null || nonce.isBlank()) {
             throw new MessageValidationException("Nonce cannot be empty");
         }
 
-        if (nouce.length() > MAX_NONCE_LENGTH) {
+        if (nonce.length() > MAX_NONCE_LENGTH) {
             throw new MessageValidationException("Nonce exceeds size limit");
         }
     }

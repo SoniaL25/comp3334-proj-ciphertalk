@@ -26,6 +26,7 @@ public class BlockedUser {
     @Column(name = "blocked_user_id")
     private UUID blockedUserId;
 
-    private LocalDateTime blocked_at;
+    @Column(name = "blocked_at")
+    private LocalDateTime blockedAt;
     
 }

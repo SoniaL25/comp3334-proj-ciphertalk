@@ -1,11 +1,14 @@
 package com.comp3334_t67.server.dtos;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 @Data
 public class AuthRequest {
     
     private String email;
-    private String password_hash;
+
+    @JsonProperty("password_hash")
+    private String passwordHash;
     
 }

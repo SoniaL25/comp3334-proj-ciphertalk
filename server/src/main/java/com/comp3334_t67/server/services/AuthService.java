@@ -24,7 +24,7 @@ public class AuthService {
     private final Map<String, Long> expiryStore = new ConcurrentHashMap<>();
 
     // Register a new user
-    public void register(String email, String password_hash) { 
+    public void register(String email, String passwordHash) { 
 
         // check if user already exists
         if (userRepo.findByEmail(email) != null) {
@@ -32,16 +32,16 @@ public class AuthService {
         }
 
         // create a new user with the provided email and password hash
-        User user = createUser(email, password_hash);
+        User user = createUser(email, passwordHash);
         // save the user to the database
         userRepo.save(user);
 
     }
 
-    public String login(String email, String password_hash) {
+    public String login(String email, String passwordHash) {
 
         // verify user credentials
-        if (!verifyCredentials(email, password_hash)) {
+        if (!verifyCredentials(email, passwordHash)) {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
@@ -86,19 +86,19 @@ public class AuthService {
     // HELPER METHODS ========================
 
     // create new user
-    private User createUser(String email, String password_hash) {
+    private User createUser(String email, String passwordHash) {
         User user = User.builder()
                         .email(email)
-                        .password_hash(password_hash.getBytes())
+                        .passwordHash(passwordHash.getBytes())
                         .build();
         return user;
     }
 
     // verify user credentials
-    public boolean verifyCredentials(String email, String password_hash) {
+    public boolean verifyCredentials(String email, String passwordHash) {
         User user = userRepo.findByEmail(email);
         if (user != null) {
-            return new String(user.getPassword_hash()).equals(password_hash);
+            return new String(user.getPasswordHash()).equals(passwordHash);
         }
         return false;
     }

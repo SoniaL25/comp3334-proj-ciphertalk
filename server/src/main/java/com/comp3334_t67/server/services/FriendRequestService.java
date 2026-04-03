@@ -50,7 +50,7 @@ public class FriendRequestService {
         // update the status of the friend request based on the response
         if (accept) {
             friendRequest.setStatus(FriendRequestStatus.ACCEPTED);
-            friendRequest.setResponded_at(LocalDateTime.now());
+            friendRequest.setRespondedAt(LocalDateTime.now());
             // add each other to friends list (not implemented here)
             FriendChat friendChat = createFriendChat(friendRequest.getSenderId(), friendRequest.getReceiverId());
             chatRepo.save(friendChat);
@@ -127,8 +127,8 @@ public class FriendRequestService {
             .senderId(senderId)
             .receiverId(receiverId)
             .status(FriendRequestStatus.PENDING)
-            .created_at(LocalDateTime.now())
-            .responded_at(null)
+            .createdAt(LocalDateTime.now())
+            .respondedAt(null)
             .build();
             
         return friendRequest;
@@ -139,7 +139,7 @@ public class FriendRequestService {
         FriendChat friendChat = FriendChat.builder()
             .user1Id(user1Id)
             .user2Id(user2Id)
-            .created_at(LocalDateTime.now())
+            .createdAt(LocalDateTime.now())
             .build();
         return chatRepo.save(friendChat);
     }
@@ -150,7 +150,7 @@ public class FriendRequestService {
         dto.setSenderId(friendRequest.getSenderId());
         dto.setReceiverId(friendRequest.getReceiverId());
         dto.setStatus(friendRequest.getStatus());
-        dto.setCreated_at(friendRequest.getCreated_at());
+        dto.setCreatedAt(friendRequest.getCreatedAt());
         return dto;
     }
 

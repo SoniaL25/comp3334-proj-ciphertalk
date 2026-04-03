@@ -28,13 +28,19 @@ public class AuthController {
     private final AuthService authService;
     private final RateLimitService rateLimitService;
 
+    //health check
+    @GetMapping("/health")
+    public ResponseEntity<ApiResponse<String>> healthCheck() {  
+        return ResponseEntity.ok(ApiResponse.success("Server is healthy", null));
+    }
+
     // Register
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Void>> register(@RequestBody AuthRequest registerRequest) {
         String key = "register:" + registerRequest.getEmail();
         rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
 
-        authService.register(registerRequest.getEmail(), registerRequest.getPassword_hash());
+        authService.register(registerRequest.getEmail(), registerRequest.getPasswordHash());
         return ResponseEntity.ok(ApiResponse.success("User registered successfully", null));
     }
 
@@ -44,7 +50,7 @@ public class AuthController {
         String key = "login:" + loginRequest.getEmail();
         rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
 
-        authService.login(loginRequest.getEmail(), loginRequest.getPassword_hash());
+        authService.login(loginRequest.getEmail(), loginRequest.getPasswordHash());
 
         // Store temporary auth state in session
         HttpSession session = request.getSession();

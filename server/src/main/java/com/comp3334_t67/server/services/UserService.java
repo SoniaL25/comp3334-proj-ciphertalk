@@ -38,7 +38,7 @@ public class UserService {
     public void uploadPublicKey(String userId, String publicKey) {
         User user = requireUserById(userId);
         
-        user.setIdentity_public_key(publicKey);
+        user.setIdentityPublicKey(publicKey);
         userRepo.save(user);
     }
 
@@ -46,7 +46,7 @@ public class UserService {
     public String getPublicKey(String userId) {
         User user = requireUserById(userId);
         
-        return user.getIdentity_public_key();
+        return user.getIdentityPublicKey();
     }
 
     // Block another user
@@ -63,7 +63,7 @@ public class UserService {
                 BlockedUser.builder()
                     .userId(blocker.getId())
                     .blockedUserId(blocked.getId())
-                    .blocked_at(LocalDateTime.now())
+                    .blockedAt(LocalDateTime.now())
                     .build()
             );
         }

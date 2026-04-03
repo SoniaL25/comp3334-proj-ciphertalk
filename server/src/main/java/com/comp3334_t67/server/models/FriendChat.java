@@ -25,6 +25,7 @@ public class FriendChat {
     @Column(name = "user2_id")
     private UUID user2Id;
 
-    private LocalDateTime created_at;
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
 }

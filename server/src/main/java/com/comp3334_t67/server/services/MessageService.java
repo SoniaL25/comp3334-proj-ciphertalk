@@ -22,8 +22,8 @@ public class MessageService {
     private final UserRepository userRepo;
 
     // send message
-    public void sendMessage(String chatId, String senderEmail, String content, String nouce) {
-        
+    public void sendMessage(String chatId, String senderEmail, String content, String nonce) {
+
         // retrieve sender and receiver id
         UUID senderId = userRepo.findByEmail(senderEmail).getId();
         
@@ -31,7 +31,7 @@ public class MessageService {
         UUID receiverId = chat.getUser1Id().equals(senderId) ? chat.getUser2Id() : chat.getUser1Id();
 
         // create message
-        Message message = createMessage(senderId, receiverId, content, nouce);
+        Message message = createMessage(senderId, receiverId, content, nonce);
 
         // save message to database
         messageRepo.save(message);    
@@ -45,7 +45,7 @@ public class MessageService {
         // update message status to DELIVERED and set delivered_at timestamp
         for (Message message : unreadMessages) {
             message.setStatus(MessageStatus.DELIVERED);
-            message.setDelivered_at(LocalDateTime.now());
+            message.setDeliveredAt(LocalDateTime.now());
             messageRepo.save(message);
         }
 
@@ -53,15 +53,15 @@ public class MessageService {
     }
 
     // Create new message
-    private Message createMessage(UUID senderId, UUID receiverId, String content, String nouce) {
+    private Message createMessage(UUID senderId, UUID receiverId, String content, String nonce) {
         Message message = Message.builder()
             .senderId(senderId)
             .receiverId(receiverId)
-            .content_hashed(content)
-            .nouce(nouce)
+            .contentHashed(content)
+            .nonce(nonce)
             .status(MessageStatus.SENT)
-            .created_at(LocalDateTime.now())
-            .expires_at(LocalDateTime.now().plusMinutes(MESSAGE_EXPIRATION_MINUTES))
+            .createdAt(LocalDateTime.now())
+            .expiresAt(LocalDateTime.now().plusMinutes(MESSAGE_EXPIRATION_MINUTES))
             .build();
         
         return message;

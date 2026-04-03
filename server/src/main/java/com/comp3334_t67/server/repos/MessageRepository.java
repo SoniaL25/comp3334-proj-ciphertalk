@@ -15,12 +15,12 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     List<Message> findByReceiverIdAndChatIdAndStatus(UUID receiverId, UUID chatId, MessageStatus status);
 
-    Optional<Message> findTopByChatIdOrderByCreated_atDesc(UUID chatId);
+    Optional<Message> findTopByChatIdOrderByCreatedAtDesc(UUID chatId);
 
     long countByReceiverIdAndChatIdAndStatus(UUID receiverId, UUID chatId, MessageStatus status);
 
     @Modifying
     @Transactional
-    @Query("DELETE FROM Message m WHERE m.expires_at IS NOT NULL AND m.expires_at < :now")
+    @Query("DELETE FROM Message m WHERE m.expiresAt IS NOT NULL AND m.expiresAt < :now")
     int deleteExpiredMessages(@Param("now") LocalDateTime now);
 }
