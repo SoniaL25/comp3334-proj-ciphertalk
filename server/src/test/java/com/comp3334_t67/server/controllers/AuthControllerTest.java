@@ -40,7 +40,7 @@ class AuthControllerTest {
     void register_shouldCallRateLimitAndService() {
         AuthRequest req = new AuthRequest();
         req.setEmail("a@x.com");
-        req.setPasswordHash("pw");
+        req.setPassword("pw");
 
         var response = controller.register(req);
 
@@ -53,7 +53,7 @@ class AuthControllerTest {
     void login_shouldSetOtpSessionAttributes() {
         AuthRequest req = new AuthRequest();
         req.setEmail("a@x.com");
-        req.setPasswordHash("pw");
+        req.setPassword("pw");
         MockHttpServletRequest request = new MockHttpServletRequest();
 
         var response = controller.login(request, req);

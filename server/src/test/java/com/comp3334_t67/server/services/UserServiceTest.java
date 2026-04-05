@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.comp3334_t67.server.Exceptions.SelfBlockNotAllowedException;
+import com.comp3334_t67.server.dtos.KeyDto;
 import com.comp3334_t67.server.models.User;
 import com.comp3334_t67.server.repos.BlockedUserRepository;
 import com.comp3334_t67.server.repos.UserRepository;
@@ -36,6 +37,16 @@ class UserServiceTest {
         var dto = service.getUserInfoById(id.toString());
 
         assertEquals("a@x.com", dto.getEmail());
+    }
+
+    @Test
+    void getPublicKey_shouldReturnKeyDto() {
+        UUID id = UUID.randomUUID();
+        when(userRepo.findById(id)).thenReturn(Optional.of(User.builder().id(id).identityPublicKey("pk").build()));
+
+        KeyDto dto = service.getPublicKey(id.toString());
+
+        assertEquals("pk", dto.getPublicKey());
     }
 
     @Test

@@ -5,6 +5,5 @@ import lombok.Data;
 @Data
 public class UploadPublicKeyRequest {
     
-    private String email;
     private String publicKey;
 }

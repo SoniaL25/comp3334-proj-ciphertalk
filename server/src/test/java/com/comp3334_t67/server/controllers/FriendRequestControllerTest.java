@@ -11,11 +11,13 @@ import org.junit.jupiter.api.Test;
 
 import com.comp3334_t67.server.Exceptions.OtpSessionMissingException;
 import com.comp3334_t67.server.dtos.ActionRequest;
+import com.comp3334_t67.server.dtos.ApiResponse;
 import com.comp3334_t67.server.dtos.FriendReqRequest;
 import com.comp3334_t67.server.dtos.FriendRequestDto;
 import com.comp3334_t67.server.services.FriendRequestService;
 import com.comp3334_t67.server.services.RateLimitService;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpSession;
 
 class FriendRequestControllerTest {
@@ -34,10 +36,10 @@ class FriendRequestControllerTest {
     @Test
     void sendFriendRequest_shouldApplyRateLimitAndDelegate() {
         FriendReqRequest req = new FriendReqRequest();
-        req.setSenderEmail("a@x.com");
+        MockHttpSession session = new MockHttpSession();
         req.setReceiverEmail("b@x.com");
 
-        controller.sendFriendRequest(req);
+        controller.sendFriendRequest(req, session);
 
         verify(rateLimitService).assertAllowed(startsWith("friend-request:"), eq(10), any());
         verify(friendService).sendFriendRequest("a@x.com", "b@x.com");
@@ -66,7 +68,8 @@ class FriendRequestControllerTest {
         session.setAttribute("email", "receiver@x.com");
         when(friendService.getIncomingFriendRequests("receiver@x.com")).thenReturn(List.of(new FriendRequestDto()));
 
-        List<FriendRequestDto> result = controller.getAllIncomingRequests(session);
+        ResponseEntity<ApiResponse<List<FriendRequestDto>>> response = controller.getAllIncomingRequests(session);
+        List<FriendRequestDto> result = response.getBody().getData();
 
         assertEquals(1, result.size());
     }

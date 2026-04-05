@@ -2,6 +2,7 @@ package com.comp3334_t67.server.services;
 
 import org.springframework.stereotype.Service;
 
+import com.comp3334_t67.server.dtos.MessageDto;
 import com.comp3334_t67.server.enums.MessageStatus;
 import com.comp3334_t67.server.models.*;
 import com.comp3334_t67.server.repos.*;
@@ -38,7 +39,7 @@ public class MessageService {
     }
 
     // get unread messages for a user
-    public List<Message> getUnreadMessagesForReceiver(String receiverEmail, String chatId) {
+    public List<MessageDto> getUnreadMessagesForReceiver(String receiverEmail, String chatId) {
         UUID receiverId = userRepo.findByEmail(receiverEmail).getId();
         List<Message> unreadMessages = messageRepo.findByReceiverIdAndChatIdAndStatus(receiverId, UUID.fromString(chatId), MessageStatus.SENT);
 
@@ -49,7 +50,17 @@ public class MessageService {
             messageRepo.save(message);
         }
 
-        return unreadMessages;
+        return unreadMessages.stream()
+            .map(this::toMessageDto)
+            .toList();
+    }
+
+    private MessageDto toMessageDto(Message message) {
+        return MessageDto.builder()
+            .content(message.getContent())
+            .sentAt(message.getCreatedAt())
+            .status(message.getStatus())
+            .build();
     }
 
     // Create new message
@@ -57,7 +68,7 @@ public class MessageService {
         Message message = Message.builder()
             .senderId(senderId)
             .receiverId(receiverId)
-            .contentHashed(content)
+            .content(content)
             .nonce(nonce)
             .status(MessageStatus.SENT)
             .createdAt(LocalDateTime.now())

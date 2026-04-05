@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.comp3334_t67.server.dtos.MessageDto;
 import com.comp3334_t67.server.enums.MessageStatus;
 import com.comp3334_t67.server.models.FriendChat;
 import com.comp3334_t67.server.models.Message;
@@ -52,13 +53,19 @@ class MessageServiceTest {
         UUID receiver = UUID.randomUUID();
         UUID chatId = UUID.randomUUID();
         when(userRepo.findByEmail("r@x.com")).thenReturn(User.builder().id(receiver).build());
-        Message m = Message.builder().status(MessageStatus.SENT).build();
+        Message m = Message.builder()
+            .content("encrypted")
+            .createdAt(java.time.LocalDateTime.now())
+            .status(MessageStatus.SENT)
+            .build();
         when(messageRepo.findByReceiverIdAndChatIdAndStatus(receiver, chatId, MessageStatus.SENT)).thenReturn(List.of(m));
 
-        List<Message> result = service.getUnreadMessagesForReceiver("r@x.com", chatId.toString());
+        List<MessageDto> result = service.getUnreadMessagesForReceiver("r@x.com", chatId.toString());
 
         assertEquals(1, result.size());
-        assertEquals(MessageStatus.DELIVERED, m.getStatus());
+        assertEquals("encrypted", result.get(0).getContent());
+        assertEquals(m.getCreatedAt(), result.get(0).getSentAt());
+        assertEquals(MessageStatus.DELIVERED, result.get(0).getStatus());
         verify(messageRepo).save(m);
     }
 }

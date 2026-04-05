@@ -50,7 +50,7 @@ class AuthServiceTest {
 
     @Test
     void loginAndVerifyOtp_shouldSucceedThenConsumeOtp() {
-        User user = User.builder().email("a@x.com").passwordHash("pw".getBytes()).build();
+        User user = User.builder().email("a@x.com").password("pw".getBytes()).build();
         when(userRepo.findByEmail("a@x.com")).thenReturn(user);
 
         final String[] sentOtp = new String[1];

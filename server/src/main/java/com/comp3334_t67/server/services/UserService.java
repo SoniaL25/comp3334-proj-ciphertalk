@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import com.comp3334_t67.server.Exceptions.SelfBlockNotAllowedException;
 import com.comp3334_t67.server.Exceptions.UserNotFoundException;
+import com.comp3334_t67.server.dtos.KeyDto;
 import com.comp3334_t67.server.models.BlockedUser;
 import com.comp3334_t67.server.models.User;
 import com.comp3334_t67.server.dtos.UserDto;
@@ -28,6 +29,14 @@ public class UserService {
                 .build();
     }
 
+    public UserDto getUserInfoByEmail(String email) {
+        User user = requireUserByEmail(email);
+        return UserDto.builder()
+                .email(user.getEmail())
+                .build();
+
+    }
+
     // Delete user by ID
     public void deleteUserById(String userId) {
         User user = requireUserById(userId);
@@ -43,16 +52,18 @@ public class UserService {
     }
 
     // Get user's public key
-    public String getPublicKey(String userId) {
+    public KeyDto getPublicKey(String userId) {
         User user = requireUserById(userId);
         
-        return user.getIdentityPublicKey();
+        return KeyDto.builder()
+                .publicKey(user.getIdentityPublicKey())
+                .build();
     }
 
     // Block another user
-    public void blockUser(String blockerEmail, String blockedEmail) {
+    public void blockUser(String blockerEmail, String blockedUserId) {
         User blocker = requireUserByEmail(blockerEmail);
-        User blocked = requireUserByEmail(blockedEmail);
+        User blocked = requireUserById(blockedUserId);
 
         if (blocker.getId().equals(blocked.getId())) {
             throw new SelfBlockNotAllowedException("User cannot block self");
@@ -70,9 +81,9 @@ public class UserService {
     }
 
     // Unblock another user
-    public void unblockUser(String blockerEmail, String blockedEmail) {
+    public void unblockUser(String blockerEmail, String blockedUserId) {
         User blocker = requireUserByEmail(blockerEmail);
-        User blocked = requireUserByEmail(blockedEmail);
+        User blocked = requireUserById(blockedUserId);
 
         blockedUserRepo.deleteByUserIdAndBlockedUserId(blocker.getId(), blocked.getId());
     }

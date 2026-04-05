@@ -10,7 +10,6 @@ import com.comp3334_t67.server.services.*;
 import jakarta.servlet.http.HttpSession;
 
 import com.comp3334_t67.server.dtos.*;
-import com.comp3334_t67.server.models.*;
 
 import java.util.*;
 
@@ -22,6 +21,7 @@ public class ChatController {
     private final MessageService messageService;
     private final ChatService chatService;
 
+    // get all friend chats for user in session
     @GetMapping
     public ResponseEntity<ApiResponse<List<FriendChatDto>>> getFriendChats(HttpSession session) {
         String email = requireSessionEmail(session);
@@ -33,16 +33,16 @@ public class ChatController {
     @PostMapping("/{chatId}")
     public ResponseEntity<ApiResponse<Void>> sendMessage(@PathVariable String chatId, @RequestBody SendMessageRequest request, HttpSession session) {
         String senderEmail = requireSessionEmail(session);
-        chatService.sendMessage(chatId, senderEmail, request.getMessageHash(), request.getNonce());
+        chatService.sendMessage(chatId, senderEmail, request.getContent(), request.getNonce());
 
         return ResponseEntity.ok(ApiResponse.success("Message sent successfully", null));
     }
 
     // receiver gets messages TODO: message dto
     @GetMapping("/{chatId}")
-    public ResponseEntity<ApiResponse<List<Message>>> getMessages(@PathVariable String chatId, HttpSession session) {
+    public ResponseEntity<ApiResponse<List<MessageDto>>> getMessages(@PathVariable String chatId, HttpSession session) {
         String email = requireSessionEmail(session);
-        List<Message> messages = messageService.getUnreadMessagesForReceiver(email,chatId);
+        List<MessageDto> messages = messageService.getUnreadMessagesForReceiver(email,chatId);
         return ResponseEntity.ok(ApiResponse.success("Messages retrieved successfully", messages));
     }
 
@@ -54,6 +54,9 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success("Friend removed successfully", null));
     }
 
+    // HELPER METHOD
+
+    // Require that the session contains a valid authenticated user email, otherwise throw an exception
     private String requireSessionEmail(HttpSession session) {
         if (session == null) {
             throw new IllegalStateException("No active session");

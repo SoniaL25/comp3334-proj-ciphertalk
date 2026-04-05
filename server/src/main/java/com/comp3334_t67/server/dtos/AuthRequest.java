@@ -8,7 +8,7 @@ public class AuthRequest {
     
     private String email;
 
-    @JsonProperty("password_hash")
-    private String passwordHash;
+    @JsonProperty("password")
+    private String password;
     
 }

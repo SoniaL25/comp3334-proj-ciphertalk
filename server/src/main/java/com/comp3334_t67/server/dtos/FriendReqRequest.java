@@ -5,6 +5,5 @@ import lombok.*;
 @Data
 public class FriendReqRequest {
     
-    private String senderEmail;
     private String receiverEmail;
 }

@@ -57,7 +57,7 @@ public class ChatService {
             .chatId(chat.getId())
             .senderId(senderId)
             .receiverId(receiverId)
-            .contentHashed(content)
+            .content(content)
             .nonce(nonce)
             .status(MessageStatus.SENT)
             .createdAt(LocalDateTime.now())

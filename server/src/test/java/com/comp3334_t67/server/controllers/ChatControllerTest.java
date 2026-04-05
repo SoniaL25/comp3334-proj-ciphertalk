@@ -10,8 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.comp3334_t67.server.dtos.FriendChatDto;
+import com.comp3334_t67.server.dtos.MessageDto;
 import com.comp3334_t67.server.dtos.SendMessageRequest;
-import com.comp3334_t67.server.models.Message;
 import com.comp3334_t67.server.services.ChatService;
 import com.comp3334_t67.server.services.MessageService;
 
@@ -48,7 +48,7 @@ class ChatControllerTest {
         session.setAttribute("OTP_USER", "u@x.com");
         String chatId = UUID.randomUUID().toString();
         SendMessageRequest req = new SendMessageRequest();
-        req.setMessageHash("abc123==");
+        req.setContent("abc123==");
         req.setNonce("nonce");
 
         var response = controller.sendMessage(chatId, req, session);
@@ -62,12 +62,13 @@ class ChatControllerTest {
         MockHttpSession session = new MockHttpSession();
         session.setAttribute("OTP_USER", "u@x.com");
         String chatId = UUID.randomUUID().toString();
-        when(messageService.getUnreadMessagesForReceiver("u@x.com", chatId)).thenReturn(List.of(new Message()));
+        when(messageService.getUnreadMessagesForReceiver("u@x.com", chatId)).thenReturn(List.of(MessageDto.builder().content("m1").build()));
 
         var response = controller.getMessages(chatId, session);
 
         assertTrue(response.getBody().isSuccess());
         assertEquals(1, response.getBody().getData().size());
+        assertEquals("m1", response.getBody().getData().get(0).getContent());
     }
 
     @Test

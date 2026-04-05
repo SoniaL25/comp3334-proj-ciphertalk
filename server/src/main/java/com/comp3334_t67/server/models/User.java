@@ -18,8 +18,8 @@ public class User {
     private UUID id;
 
     private String email;
-    @Column(name = "password_hash")
-    private byte[] passwordHash;
+    @Column(name = "password")
+    private byte[] password;
 
     @Column(name = "identity_public_key")
     private String identityPublicKey;

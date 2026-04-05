@@ -7,10 +7,10 @@ import lombok.Data;
 public class SendMessageRequest {
     private String senderEmail;
 
-    @JsonProperty("message_hash")
-    private String messageHash;
+    @JsonProperty("content")
+    private String content;
 
-    @JsonProperty("nouce")
+    @JsonProperty("nonce")
     private String nonce;
 
 }

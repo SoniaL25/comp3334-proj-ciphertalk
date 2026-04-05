@@ -30,7 +30,7 @@ public class AuthController {
 
     //health check
     @GetMapping("/health")
-    public ResponseEntity<ApiResponse<String>> healthCheck() {  
+    public ResponseEntity<ApiResponse<Void>> healthCheck() {  
         return ResponseEntity.ok(ApiResponse.success("Server is healthy", null));
     }
 
@@ -40,7 +40,7 @@ public class AuthController {
         String key = "register:" + registerRequest.getEmail();
         rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
 
-        authService.register(registerRequest.getEmail(), registerRequest.getPasswordHash());
+        authService.register(registerRequest.getEmail(), registerRequest.getPassword());
         return ResponseEntity.ok(ApiResponse.success("User registered successfully", null));
     }
 
@@ -50,7 +50,7 @@ public class AuthController {
         String key = "login:" + loginRequest.getEmail();
         rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
 
-        authService.login(loginRequest.getEmail(), loginRequest.getPasswordHash());
+        authService.login(loginRequest.getEmail(), loginRequest.getPassword());
 
         // Store temporary auth state in session
         HttpSession session = request.getSession();
@@ -93,7 +93,7 @@ public class AuthController {
 
     // logout
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Object>> logout(HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
         request.getSession().invalidate();
         SecurityContextHolder.clearContext();
         return ResponseEntity.ok(ApiResponse.success("Logged out successfully", null));

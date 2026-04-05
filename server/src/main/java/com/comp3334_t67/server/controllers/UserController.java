@@ -9,7 +9,7 @@ import com.comp3334_t67.server.dtos.*;
 import jakarta.servlet.http.HttpSession;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api")
 @AllArgsConstructor
 public class UserController {
     
@@ -17,38 +17,64 @@ public class UserController {
 
     // ACCESS SELF INFO
 
-    @GetMapping("/{user-id}")
+    // Get profile of user in session
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponse<UserDto>> getProfile(HttpSession session) {
+        String email = requireSessionEmail(session);
+        return ResponseEntity.ok(ApiResponse.success("Profile retrieved successfully", userService.getUserInfoByEmail(email)));
+    }
+
+    // get user in session's public key
+    @GetMapping("/profile/public-key")
+    public ResponseEntity<ApiResponse<KeyDto>> getPublicKey(HttpSession session) {
+        String email = requireSessionEmail(session);
+        return ResponseEntity.ok(ApiResponse.success("Public key retrieved successfully", userService.getPublicKey(email)));
+    }
+
+    // upload user in session's public key
+    @PutMapping("/profile/public-key")
+    public ResponseEntity<ApiResponse<Void>> uploadPublicKey(@RequestBody UploadPublicKeyRequest request, HttpSession session) {
+        String email = requireSessionEmail(session);
+        userService.uploadPublicKey(email, request.getPublicKey());
+        return ResponseEntity.ok(ApiResponse.success("Public key uploaded successfully", null));
+    }
+    
+
+    // ACCESS OTHER USER INFO
+
+    // get other user's info by their user ID
+    @GetMapping("/users/{userId}")
     public ResponseEntity<ApiResponse<UserDto>> getUserInfo(@PathVariable String userId) {
         return ResponseEntity.ok(ApiResponse.success("User info retrieved successfully", userService.getUserInfoById(userId)));
     }
 
-    @PostMapping("/{user-id}/public-key")
-    public ResponseEntity<ApiResponse<Void>> uploadPublicKey(@PathVariable String userId, @RequestBody UploadPublicKeyRequest request) {
-        userService.uploadPublicKey(userId, request.getPublicKey());
-        return ResponseEntity.ok(ApiResponse.success("Public key uploaded successfully", null));
-    }
-
-    // ACCESS OTHER USER INFO
-
-    @GetMapping("/public-keys/{user-id}") // TODO: need more security
-    public ResponseEntity<ApiResponse<String>> getPublicKey(@PathVariable String userId) {
+    // get other user's public key by their user ID
+    @GetMapping("/users/{userId}/public-key") // TODO: need more security
+    public ResponseEntity<ApiResponse<KeyDto>> getPublicKey(@PathVariable String userId) {
         return ResponseEntity.ok(ApiResponse.success("Public key retrieved successfully", userService.getPublicKey(userId)));
     }
 
-    @PostMapping("/block")
-    public ResponseEntity<ApiResponse<Void>> blockUser(@RequestParam String blockedEmail, HttpSession session) {
+
+    // block other users
+    @PostMapping("/users/{userId}/block")
+    public ResponseEntity<ApiResponse<Void>> blockUser(@PathVariable String userId, HttpSession session) {
         String blockerEmail = requireSessionEmail(session);
-        userService.blockUser(blockerEmail, blockedEmail);
+        userService.blockUser(blockerEmail, userId);
         return ResponseEntity.ok(ApiResponse.success("User blocked successfully", null));
     }
 
-    @PostMapping("/unblock")
-    public ResponseEntity<ApiResponse<Void>> unblockUser(@RequestParam String blockedEmail, HttpSession session) {
+    // unblock other users
+    @DeleteMapping("/users/{userId}/unblock")
+    public ResponseEntity<ApiResponse<Void>> unblockUser(@PathVariable String userId, HttpSession session) {
         String blockerEmail = requireSessionEmail(session);
-        userService.unblockUser(blockerEmail, blockedEmail);
+        userService.unblockUser(blockerEmail, userId);
         return ResponseEntity.ok(ApiResponse.success("User unblocked successfully", null));
     }
 
+
+    // HELPER METHODS
+
+    // retrieve email from session
     private String requireSessionEmail(HttpSession session) {
         if (session == null) {
             throw new IllegalStateException("No active session");

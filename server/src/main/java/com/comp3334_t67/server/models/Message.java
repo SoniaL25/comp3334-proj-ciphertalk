@@ -32,8 +32,8 @@ public class Message {
     @Column(name = "nonce")
     private String nonce;
 
-    @Column(name = "content_hashed")
-    private String contentHashed;
+    @Column(name = "content")
+    private String content;
 
     @Enumerated(EnumType.STRING)
     private MessageStatus status; // "sent", "delivered", "read"

@@ -24,7 +24,7 @@ public class AuthService {
     private final Map<String, Long> expiryStore = new ConcurrentHashMap<>();
 
     // Register a new user
-    public void register(String email, String passwordHash) { 
+    public void register(String email, String password) { 
 
         // check if user already exists
         if (userRepo.findByEmail(email) != null) {
@@ -32,16 +32,16 @@ public class AuthService {
         }
 
         // create a new user with the provided email and password hash
-        User user = createUser(email, passwordHash);
+        User user = createUser(email, password);
         // save the user to the database
         userRepo.save(user);
 
     }
 
-    public String login(String email, String passwordHash) {
+    public String login(String email, String password) {
 
         // verify user credentials
-        if (!verifyCredentials(email, passwordHash)) {
+        if (!verifyCredentials(email, password)) {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
@@ -86,19 +86,19 @@ public class AuthService {
     // HELPER METHODS ========================
 
     // create new user
-    private User createUser(String email, String passwordHash) {
+    private User createUser(String email, String password) {
         User user = User.builder()
                         .email(email)
-                        .passwordHash(passwordHash.getBytes())
+                        .password(password.getBytes())
                         .build();
         return user;
     }
 
     // verify user credentials
-    public boolean verifyCredentials(String email, String passwordHash) {
+    public boolean verifyCredentials(String email, String password) {
         User user = userRepo.findByEmail(email);
         if (user != null) {
-            return new String(user.getPasswordHash()).equals(passwordHash);
+            return new String(user.getPassword()).equals(password);
         }
         return false;
     }

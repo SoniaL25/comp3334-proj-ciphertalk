@@ -1,5 +1,6 @@
 package com.comp3334_t67.server.controllers;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import lombok.*;
 
@@ -22,44 +23,53 @@ public class FriendRequestController {
     private final FriendRequestService friendService;
     private final RateLimitService rateLimitService;
 
+    // Send friend request
     @PostMapping("/send")
-    public void sendFriendRequest(@RequestBody FriendReqRequest requestDto) {
-        String key = "friend-request:" + requestDto.getSenderEmail();
+    public ResponseEntity<ApiResponse<Void>> sendFriendRequest(@RequestBody FriendReqRequest requestDto, HttpSession session) {
+        String sendEmail = (String) session.getAttribute("OTP_USER");
+        String key = "friend-request:" + sendEmail;
         rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
 
-        friendService.sendFriendRequest(requestDto.getSenderEmail(), requestDto.getReceiverEmail());
+        friendService.sendFriendRequest(sendEmail, requestDto.getReceiverEmail());
+        return ResponseEntity.ok(ApiResponse.success("Friend request sent successfully", null));
     }
 
+    // Respond to friend request
     @PutMapping("/{requestId}/respond")
-    public void respondToFriendRequest(@PathVariable String requestId, @RequestBody ActionRequest requestDto) {
+    public ResponseEntity<ApiResponse<Void>> respondToFriendRequest(@PathVariable String requestId, @RequestBody ActionRequest requestDto) {
         friendService.respondToFriendRequest(requestId, requestDto.isAccepted());
+        return ResponseEntity.ok(ApiResponse.success("response sent successfully", null));
     }
 
-    @PutMapping("/{requestId}/cancel")
-    public void cancelFriendRequest(@PathVariable String requestId, HttpSession session) {
-        String senderEmail = (String) session.getAttribute("email");
+    // Cancel friend request
+    @DeleteMapping("/{requestId}")
+    public ResponseEntity<ApiResponse<Void>> cancelFriendRequest(@PathVariable String requestId, HttpSession session) {
+        String senderEmail = (String) session.getAttribute("OTP_USER");
         if (senderEmail == null) {
             throw new OtpSessionMissingException("No OTP verification in progress");
         }
         friendService.cancelFriendRequest(senderEmail, requestId);
+        return ResponseEntity.ok(ApiResponse.success("Friend request cancelled successfully", null));
     }
 
+    // get all incoming friend requests for user in session
     @GetMapping("/incoming")
-    public List<FriendRequestDto> getAllIncomingRequests(HttpSession session) {
-        String receiverEmail = (String) session.getAttribute("email");
+    public ResponseEntity<ApiResponse<List<FriendRequestDto>>> getAllIncomingRequests(HttpSession session) {
+        String receiverEmail = (String) session.getAttribute("OTP_USER");
         if (receiverEmail == null) {
             throw new OtpSessionMissingException("No OTP verification in progress");
         }
-        return friendService.getIncomingFriendRequests(receiverEmail);
+        return ResponseEntity.ok(ApiResponse.success("Incoming friend requests retrieved successfully", friendService.getIncomingFriendRequests(receiverEmail)));
     }
 
+    // get all outgoing friend requests for user in session
     @GetMapping("/outgoing")
-    public List<FriendRequestDto> getAllOutgoingRequests(HttpSession session) {
-        String senderEmail = (String) session.getAttribute("email");
+    public ResponseEntity<ApiResponse<List<FriendRequestDto>>> getAllOutgoingRequests(HttpSession session) {
+        String senderEmail = (String) session.getAttribute("OTP_USER");
         if (senderEmail == null) {
             throw new OtpSessionMissingException("No OTP verification in progress");
         }
-        return friendService.getOutgoingFriendRequests(senderEmail);
+        return ResponseEntity.ok(ApiResponse.success("Outgoing friend requests retrieved successfully", friendService.getOutgoingFriendRequests(senderEmail)));
     }
 
 }
