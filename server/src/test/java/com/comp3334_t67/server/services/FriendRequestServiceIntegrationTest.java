@@ -17,6 +17,7 @@ import com.comp3334_t67.server.Exceptions.FriendRequestOwnershipException;
 import com.comp3334_t67.server.Exceptions.FriendRequestStateException;
 import com.comp3334_t67.server.dtos.FriendRequestDto;
 import com.comp3334_t67.server.enums.FriendRequestStatus;
+import com.comp3334_t67.server.models.BlockedUser;
 import com.comp3334_t67.server.models.FriendRequest;
 import com.comp3334_t67.server.models.User;
 
@@ -39,6 +40,22 @@ class FriendRequestServiceIntegrationTest extends IntegrationTestBase {
         List<FriendRequest> requests = friendRequestRepo.findBySenderIdAndStatus(sender.getId(), FriendRequestStatus.PENDING);
         assertEquals(1, requests.size());
         assertEquals(receiver.getId(), requests.get(0).getReceiverId());
+    }
+
+    @Test
+    void sendFriendRequest_shouldThrow_whenSenderIsBlockedByReceiver() {
+        // Arrange: receiver blocks sender.
+        User sender = userRepo.save(User.builder().email("SB@EXAMPLE.COM").password("x".getBytes()).build());
+        User receiver = userRepo.save(User.builder().email("RB@EXAMPLE.COM").password("x".getBytes()).build());
+        blockedUserRepo.save(BlockedUser.builder()
+            .userId(receiver.getId())
+            .blockedUserId(sender.getId())
+            .blockedAt(LocalDateTime.now())
+            .build());
+
+        // Act + Assert: blocked sender cannot create a new friend request.
+        assertThrows(FriendRequestStateException.class, () -> service.sendFriendRequest(sender.getEmail(), receiver.getEmail()));
+        assertTrue(friendRequestRepo.findBySenderIdAndStatus(sender.getId(), FriendRequestStatus.PENDING).isEmpty());
     }
 
     @Test

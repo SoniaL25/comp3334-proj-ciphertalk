@@ -20,9 +20,8 @@ import org.springframework.stereotype.Service;
 @AllArgsConstructor
 public class FriendRequestService {
 
-    // TODO: add logging and error handling
-
     private final FriendRequestRepository requestRepo;
+    private final BlockedUserRepository blockedUserRepo;
     private final FriendChatRepository chatRepo;
     private final UserRepository userRepo;
 
@@ -30,6 +29,11 @@ public class FriendRequestService {
     public void sendFriendRequest(String senderEmail, String receiverEmail) {
         UUID senderId = requireUserIdByEmail(senderEmail);
         UUID receiverId = requireUserIdByEmail(receiverEmail);
+
+        // Check if sender is block by receiver
+        if (blockedUserRepo.existsByUserIdAndBlockedUserId(receiverId, senderId)) {
+            throw new FriendRequestStateException("Cannot send friend request: you are blocked by the user");
+        }
 
         // create a new friend request with status PENDING
         FriendRequest friendRequest = createFriendRequest(senderId, receiverId);
