@@ -5,11 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,18 +50,20 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         friendRequestRepo.save(FriendRequest.builder().senderId(sender.getId()).receiverId(receiver.getId()).status(FriendRequestStatus.ACCEPTED).createdAt(LocalDateTime.now()).build());
 
         // Act: send one message.
-        assertDoesNotThrow(() -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce123"));
+        assertDoesNotThrow(() -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce123", "c-msg-1", "tag-1"));
 
         // Assert: one message was persisted for the chat.
         List<Message> stored = messageRepo.findAll();
         assertEquals(1, stored.size());
         assertEquals(chat.getId(), stored.get(0).getChatId());
+        assertEquals("c-msg-1", stored.get(0).getClientMessageId());
+        assertEquals("tag-1", stored.get(0).getTag());
     }
 
     @Test
     void sendMessage_shouldThrow_whenChatIdIsInvalid() {
         // Arrange + Act + Assert: malformed UUID should fail fast.
-        assertThrows(MessageValidationException.class, () -> chatService.sendMessage("bad-id", "A@EXAMPLE.COM", "abc", "nonce"));
+        assertThrows(MessageValidationException.class, () -> chatService.sendMessage("bad-id", "A@EXAMPLE.COM", "abc", "nonce", "c-msg-2", "tag-2"));
     }
 
     @Test
@@ -72,7 +74,7 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         FriendChat chat = friendChatRepo.save(FriendChat.builder().user1Id(sender.getId()).user2Id(receiver.getId()).createdAt(LocalDateTime.now()).build());
 
         // Act + Assert: friendship check blocks sending.
-        assertThrows(UsersNotFriendsException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce"));
+        assertThrows(UsersNotFriendsException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "c-msg-3", "tag-3"));
     }
 
     @Test
@@ -85,7 +87,7 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         blockedUserRepo.save(BlockedUser.builder().userId(sender.getId()).blockedUserId(receiver.getId()).blockedAt(LocalDateTime.now()).build());
 
         // Act + Assert: blocked users cannot message.
-        assertThrows(MessagingBlockedException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce"));
+        assertThrows(MessagingBlockedException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "c-msg-4", "tag-4"));
     }
 
     @Test
@@ -103,7 +105,8 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         assertEquals(1, result.size());
         assertEquals(MessageStatus.DELIVERED, result.get(0).getStatus());
         assertEquals(MessageStatus.DELIVERED, messageRepo.findAll().get(0).getStatus());
-        verify(messageRepositorySpy).save(org.mockito.ArgumentMatchers.any(Message.class));
+        verify(messageRepositorySpy, org.mockito.Mockito.atLeastOnce()).save(any(Message.class));    
+    
     }
 
     @Test

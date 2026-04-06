@@ -55,10 +55,10 @@ public class ChatService {
     }
 
     // send message
-    public void sendMessage(String chatId, String senderEmail, String content, String nonce) {
+    public void sendMessage(String chatId, String senderEmail, String content, String nonce, String clientMessageId, String tag) {
         
         // validate input parameters
-        validateSendMessageInput(chatId, content, nonce);
+        validateSendMessageInput(chatId, content, nonce, clientMessageId, tag);
 
         UUID senderId = requireUserIdByEmail(senderEmail);
         FriendChat chat = chatRepo.findById(UUID.fromString(chatId))
@@ -82,7 +82,7 @@ public class ChatService {
         }
 
         // if all validations pass, create and save the message
-        messageRepo.save(createMessage(chat.getId(), senderId, receiverId, content, nonce));
+        messageRepo.save(createMessage(chat.getId(), senderId, receiverId, content, nonce, clientMessageId, tag));
     }
 
     // Get unread messages for a receiver in one chat
@@ -213,7 +213,7 @@ public class ChatService {
     }
 
     // validate input for sending message, throw exception if invalid
-    private void validateSendMessageInput(String chatId, String content, String nonce) {
+    private void validateSendMessageInput(String chatId, String content, String nonce, String clientMessageId, String tag) {
         try {
             UUID.fromString(chatId);
         } catch (RuntimeException ex) {
@@ -239,6 +239,14 @@ public class ChatService {
         if (nonce.length() > MAX_NONCE_LENGTH) {
             throw new MessageValidationException("Nonce exceeds size limit");
         }
+
+        if (clientMessageId == null || clientMessageId.isBlank()) {
+            throw new MessageValidationException("clientMessageId cannot be empty");
+        }
+
+        if (tag == null || tag.isBlank()) {
+            throw new MessageValidationException("Tag cannot be empty");
+        }
     }
 
     // Convert a message entity into a response DTO
@@ -254,13 +262,15 @@ public class ChatService {
     }
 
     // Build a new outgoing message entity
-    private Message createMessage(UUID chatId, UUID senderId, UUID receiverId, String content, String nonce) {
+    private Message createMessage(UUID chatId, UUID senderId, UUID receiverId, String content, String nonce, String clientMessageId, String tag) {
         return Message.builder()
             .chatId(chatId)
             .senderId(senderId)
             .receiverId(receiverId)
             .content(content)
             .nonce(nonce)
+            .clientMessageId(clientMessageId)
+            .tag(tag)
             .status(MessageStatus.SENT)
             .createdAt(LocalDateTime.now())
             .expiresAt(LocalDateTime.now().plusMinutes(MESSAGE_EXPIRATION_MINUTES))

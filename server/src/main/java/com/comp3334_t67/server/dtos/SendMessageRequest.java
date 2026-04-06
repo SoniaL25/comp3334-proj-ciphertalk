@@ -13,4 +13,7 @@ public class SendMessageRequest {
     @JsonProperty("nonce")
     private String nonce;
 
+    private String clientMessageId;
+    private String tag;
+
 }

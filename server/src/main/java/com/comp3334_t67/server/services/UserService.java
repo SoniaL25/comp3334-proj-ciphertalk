@@ -2,9 +2,11 @@ package com.comp3334_t67.server.services;
 
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.comp3334_t67.server.Exceptions.*;
 import com.comp3334_t67.server.dtos.*;
 import com.comp3334_t67.server.models.*;
@@ -54,7 +56,7 @@ public class UserService {
 
         // update public key and timestamp
         user.setIdentityPublicKey(publicKey);
-        user.setKeyUpdatedAt(LocalDateTime.now());
+        user.setKeyUpdatedAt(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS));
         userRepo.save(user);
     }
 
@@ -83,6 +85,11 @@ public class UserService {
     // Block another user
     public void blockUser(String blockerEmail, String blockedUserId) {
         User blocker = requireUserByEmail(blockerEmail);
+
+        if (blocker.getId().toString().equals(blockedUserId)) {
+            throw new SelfBlockNotAllowedException("User cannot block self");
+        }
+
         User blocked = requireUserById(blockedUserId);
 
         if (blocker.getId().equals(blocked.getId())) {
@@ -101,6 +108,7 @@ public class UserService {
     }
 
     // Unblock another user
+    @Transactional
     public void unblockUser(String blockerEmail, String blockedUserId) {
         User blocker = requireUserByEmail(blockerEmail);
         User blocked = requireUserById(blockedUserId);
