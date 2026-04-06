@@ -9,6 +9,12 @@ BASE_URL = "http://localhost:8080"
 
 # Mock storage (for fallback)
 mock_db = {}
+mock_friend_requests = {
+    "test_user": ["alice"]
+}
+mock_friends = {
+    "test_user": ["bob"]
+}
 
 
 def register(username, password): #auth 
@@ -29,6 +35,7 @@ def register(username, password): #auth
 
 def login(username, password):
     url = f"{BASE_URL}/api/auth/login"
+
     try:
         res = requests.post(url, json={
             "email": username,
@@ -38,25 +45,132 @@ def login(username, password):
         print("Login response status:", res.status_code)
 
         if res.status_code == 200:
-            data = res.json()
-            # if server return token
-            token = data.get("token")
-            if token:
-                return token
-        
-        # fallback if server responds but not correct
-        print("Login failed (OTP issue), using mock token for testing...")
+            print("[SERVER] OTP sent")
+            return {"status": "otp_required"}
 
     except Exception as e:
         print("Login server error:", e)
 
-    # fallback mock token
-    return "mock-token"
+    # fallback
+    print("[MOCK] Login success (skip OTP)")
+    return {"status": "mock_success", "token": "mock-token"}
 
     #Original with server
     #else:
         #print("Login failed:", res.text)
         #return None
+
+
+def verify_otp(email, otp):
+    url = f"{BASE_URL}/api/auth/verify"
+
+    try:
+        res = requests.post(url, json={
+            "email": email,
+            "otp": otp
+        })
+
+        if res.status_code == 200:
+            data = res.json()
+            print("[SERVER] OTP verified")
+            return data.get("token")
+
+    except Exception as e:
+        print("Verify error:", e)
+
+    # fallback
+    print("[MOCK] OTP bypass")
+    return "mock-token"
+
+
+def send_friend_request(token, to_user):
+    url = f"{BASE_URL}/api/requests/send"
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    try:
+        res = requests.post(url, json={
+            "toUser": to_user
+        }, headers=headers)
+
+        if res.status_code == 200:
+            print("[Friend Request Sent - SERVER]")
+            return res.json()
+
+        else:
+            print("Send request failed (server):", res.text)
+
+    except Exception as e:
+        print("Server error:", e)
+
+    # FALLBACK
+    print("[MOCK] Friend request sent locally")
+
+    mock_friend_requests.setdefault(to_user, []).append("mock_user")
+
+    return {"status": "mock_request_sent"}
+
+
+def accept_friend_request(token, user, from_user):
+    url = f"{BASE_URL}/api/requests/{from_user}/respond"
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    try:
+        res = requests.put(url, json={
+            "action": "ACCEPT"
+        }, headers=headers)
+
+        if res.status_code == 200:
+            print("[Friend Accepted - SERVER]")
+            return res.json()
+
+    except Exception as e:
+        print("Server error:", e)
+
+    # FALLBACK
+    print("[MOCK] Accept locally")
+
+    if user in mock_friend_requests and from_user in mock_friend_requests[user]:
+        mock_friend_requests[user].remove(from_user)
+
+        mock_friends.setdefault(user, []).append(from_user)
+        mock_friends.setdefault(from_user, []).append(user)
+
+    return {"status": "mock_accepted"}
+
+def get_incoming_requests(token):
+    url = f"{BASE_URL}/api/requests/incoming"
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    try:
+        res = requests.get(url, headers=headers)
+
+        if res.status_code == 200:
+            print("[SERVER] Incoming requests fetched")
+            return res.json()
+
+    except Exception as e:
+        print("Server error:", e)
+
+    # fallback
+    print("[MOCK] Using local incoming requests")
+
+    # mock structure
+    return [
+        {"id": "1", "fromUser": "alice"}
+    ]
+
+
+def are_friends(user1, user2): # check if friends
+    return user2 in mock_friends.get(user1, [])
     
 
 def send_message(token, chat_id, payload): #chat

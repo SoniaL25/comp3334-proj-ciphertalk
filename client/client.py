@@ -10,6 +10,17 @@ username = None
 
 local_messages = {}  # message_id -> (msg, expiry)
 
+def init_mock_data(user):
+    # incoming request
+    api.mock_friend_requests.setdefault(user, []).append("alice")
+
+    # friend list
+    api.mock_friends.setdefault(user, []).append("alice")
+    api.mock_friends.setdefault("alice", []).append(user)
+
+    print(f"[MOCK INIT] Data loaded for {user}")
+
+
 def encode_bytes(b): # Utils
     return base64.b64encode(b).decode()
 
@@ -32,13 +43,38 @@ def do_register(): # Auth
 
 def do_login():
     global token, username
+
     u = input("Email: ")
     p = input("Password: ")
 
-    token = api.login(u, p)
-    if token:
+    res = api.login(u, p)
+
+    if res.get("status") == "mock_success":
+        token = res.get("token")
         username = u
-        print("Login success")
+
+        init_mock_data(username) 
+
+        print("Login success (mock)")
+        return
+
+    if res.get("status") == "otp_required":
+        print("OTP sent to your email")
+
+        otp = input("Enter OTP: ")
+
+        token_res = api.verify_otp(u, otp)
+
+        if token_res:
+            token = token_res
+            username = u
+
+            init_mock_data(username) 
+
+            print("Login success")
+        else:
+            print("Login failed")
+
     else:
         print("Login failed")
 
@@ -57,6 +93,58 @@ def setup_shared_key(): # Key Exchange
     print("Secure session established")
 
 
+def send_friend_request():
+    global token
+
+    if not token:
+        print("Please login first")
+        return
+
+    to_user = input("Enter username to add: ")
+    api.send_friend_request(token, to_user)
+
+
+def accept_friend_request():
+    global username, token
+
+    # mock incoming
+    requests = api.mock_friend_requests.get(username, [])
+
+    if not requests:
+        print("No incoming requests")
+        return
+
+    print("\n[Incoming Requests]:")
+    for i, user in enumerate(requests):
+        print(f"ID: {i+1} from {user}")
+
+    choice = input("Enter request ID to accept: ")
+
+    try:
+        idx = int(choice) - 1
+        from_user = requests[idx]
+    except:
+        print("Invalid ID")
+        return
+
+    # call api（with fallback）
+    api.accept_friend_request(token, username, from_user)
+
+    print(f"[Accepted] You are now friends with {from_user}")
+
+
+def show_friends():
+    global username
+
+    friends = api.mock_friends.get(username, [])
+
+    print("\n[Friends]:")
+    if not friends:
+        print("(No friends)")
+    else:
+        for f in friends:
+            print(f"- {f}")
+
 def send_message(): # Send Message 
     global shared_key
 
@@ -66,6 +154,12 @@ def send_message(): # Send Message
 
     if not token:
         print("Please login first")
+        return
+    
+    receiver = input("Send to (username): ")
+    
+    if not api.are_friends(username, receiver):
+        print("You must be friends before sending messages")
         return
 
     chat_id = input("Chat ID: ")
@@ -189,18 +283,41 @@ def cleanup_messages(): # Cleanup
         print(f"[Expired] Message {mid} expired")
 
 
-def show_inbox(): # Inbox
-    print("\n[Inbox]:")
+def show_inbox():
+    global local_messages
 
-    if not local_messages:
+    messages = list(local_messages.values())
+
+    if not messages:
         print("(No messages)")
         return
 
-    for mid, (msg, expiry) in local_messages.items():
-        print(f"[Message] {msg}")
+    page_size = 3
+    page = 0
+
+    while True:
+        start = page * page_size
+        end = start + page_size
+        chunk = messages[start:end]
+
+        if not chunk:
+            print("(No more messages)")
+            break
+
+        print(f"\n[Inbox Page {page+1}]:")
+        for msg, _ in chunk:
+            print(f"[Message] {msg}")
+
+        cmd = input("Press n for next page, q to quit: ")
+
+        if cmd == "n":
+            page += 1
+        else:
+            break
 
 
 def main(): # CLI
+
     while True:
         cleanup_messages()
 
@@ -212,6 +329,9 @@ def main(): # CLI
         print("5. Send Message")
         print("6. Receive Messages")
         print("7. Show Inbox")
+        print("8. Send Friend Request")    
+        print("9. Accept Friend Request")    
+        print("10. Show Friends")           
         print("0. Exit")
         print("=====================")
 
@@ -232,8 +352,16 @@ def main(): # CLI
             receive_messages()
         elif choice == "7":
             show_inbox()
+        elif choice == "8":
+            send_friend_request()     
+        elif choice == "9":
+            accept_friend_request()   
+        elif choice == "10":
+            show_friends()              
         elif choice == "0":
             break
+        else:
+            print("Invalid choice")
 
 
 if __name__ == "__main__":
