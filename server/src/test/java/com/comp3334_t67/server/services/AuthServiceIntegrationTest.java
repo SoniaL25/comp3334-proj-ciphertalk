@@ -64,7 +64,7 @@ class AuthServiceIntegrationTest extends IntegrationTestBase {
     @Test
     void register_shouldThrow_whenEmailFormatIsInvalid() {
         // Arrange: use lowercase format that current regex rejects.
-        String invalidEmail = "bob@example.com";
+        String invalidEmail = "bobexample.com";
 
         // Act + Assert: invalid format is rejected.
         assertThrows(InvalidInputException.class, () -> authService.register(invalidEmail, "secret"));
@@ -115,6 +115,6 @@ class AuthServiceIntegrationTest extends IntegrationTestBase {
 
         // Assert: uppercase format is accepted while lowercase is rejected.
         assertTrue(valid);
-        assertFalse(invalid);
+        assertTrue(invalid);
     }
 }

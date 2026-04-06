@@ -20,7 +20,6 @@ import com.comp3334_t67.server.Exceptions.SelfBlockNotAllowedException;
 import com.comp3334_t67.server.Exceptions.UserNotFoundException;
 import com.comp3334_t67.server.dtos.KeyDto;
 import com.comp3334_t67.server.dtos.UserDto;
-import com.comp3334_t67.server.models.BlockedUser;
 import com.comp3334_t67.server.models.User;
 
 @SpringBootTest
