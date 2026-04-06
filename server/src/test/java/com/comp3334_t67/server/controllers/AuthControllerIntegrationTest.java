@@ -81,6 +81,7 @@ class AuthControllerIntegrationTest extends IntegrationTestBase {
         ArgumentCaptor<String> otpCaptor = ArgumentCaptor.forClass(String.class);
         verify(emailService).sendOtpEmail(org.mockito.ArgumentMatchers.eq(mockEmail), otpCaptor.capture());
         OtpVerificationRequest otpRequest = new OtpVerificationRequest();
+        otpRequest.setEmail(mockEmail);
         otpRequest.setOtp(Integer.parseInt(otpCaptor.getValue()));
 
         // Act: verify otp using same HTTP session.
@@ -108,6 +109,7 @@ class AuthControllerIntegrationTest extends IntegrationTestBase {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.getSession().setAttribute("OTP_USER", "MISSING@EXAMPLE.COM");
         OtpVerificationRequest otpRequest = new OtpVerificationRequest();
+        otpRequest.setEmail("MISSING@EXAMPLE.COM");
         otpRequest.setOtp(111111);
 
         // Act + Assert: invalid otp path throws expected exception.

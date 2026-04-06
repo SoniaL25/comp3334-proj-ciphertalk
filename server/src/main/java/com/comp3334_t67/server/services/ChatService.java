@@ -20,7 +20,6 @@ public class ChatService {
 
     private static final int MAX_MESSAGE_HASH_LENGTH = 4096; // 4KB hash size limit
     private static final int MAX_NONCE_LENGTH = 12; // 12 bytes nonce size limit
-    private static final int MESSAGE_EXPIRATION_MINUTES = 10;
     private static final String HASH_FORMAT_REGEX = "^[A-Za-z0-9+/=._:-]+$";
     
     private final FriendChatRepository chatRepo;
