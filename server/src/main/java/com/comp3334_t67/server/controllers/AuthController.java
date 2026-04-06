@@ -55,6 +55,32 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("User registered successfully", null));
     }
 
+    // temp login without otp for testing
+    @PostMapping("/temp-login")
+    public ResponseEntity<ApiResponse<Void>> tempLogin(HttpServletRequest request, @RequestBody AuthRequest loginRequest) {
+        String ip = request.getRemoteAddr();
+        log.info("Temp login request received from ip={}", ip);
+        authService.login(loginRequest.getEmail(), loginRequest.getPassword());
+        // Store temporary auth state in session
+        HttpSession session = request.getSession();
+        session.setAttribute("OTP_USER", loginRequest.getEmail());
+        // Mark OTP as verified
+        session.setAttribute("OTP_VERIFIED", true);
+        request.changeSessionId();
+
+        // Set authentication in security context (user, credentials, authorities)
+        UsernamePasswordAuthenticationToken auth =
+            new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), null, List.of());
+
+        // store auth in current context
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        log.info("TEMP LOGIN: Fake OTP verification succeeded from ip={}", ip);
+        
+        return ResponseEntity.ok(ApiResponse.success("TEMP LOGIN: Fake OTP verified, login successful", null));
+    
+    }
+
+
     // login
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Void>> login(HttpServletRequest request, @RequestBody AuthRequest loginRequest) {
