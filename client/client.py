@@ -13,27 +13,35 @@ local_messages = {}  # message_id -> (msg, expiry)
 def encode_bytes(b): # Utils
     return base64.b64encode(b).decode()
 
+
 def decode_bytes(s):
     return base64.b64decode(s.encode())
 
-def show_fingerprint(): # Identity / Fingerprint
+
+def show_fingerprint(): # Identity
     fp = crypto.generate_fingerprint(identity_public)
     print(f"[Key] Your fingerprint:\n{fp}")
 
+
 def do_register(): # Auth
-    u = input("Username: ")
+    u = input("Email: ")
     p = input("Password: ")
     res = api.register(u, p)
     print(res)
 
+
 def do_login():
     global token, username
-    u = input("Username: ")
+    u = input("Email: ")
     p = input("Password: ")
-    res = api.login(u, p)
-    token = res.get("token")
-    username = u
-    print("Logged in Completed")
+
+    token = api.login(u, p)
+    if token:
+        username = u
+        print("Login success")
+    else:
+        print("Login failed")
+
 
 def setup_shared_key(): # Key Exchange
     global shared_key
@@ -43,105 +51,132 @@ def setup_shared_key(): # Key Exchange
     params = crypto.generate_dh_parameters()
     priv, pub = crypto.generate_dh_keypair(params)
 
-    # TEMP demo（can change server exchange）
+    # demo shared key
     shared_key = crypto.compute_shared_secret(priv, pub)
 
-    print("Secure session established Completly")
+    print("Secure session established")
 
-def send_message(): # Send Message
+
+def send_message(): # Send Message 
     global shared_key
 
     if not shared_key:
-        print(" No shared key")
+        print("No shared key")
         return
 
-    receiver = input("To: ")
+    if not token:
+        print("Please login first")
+        return
+
+    chat_id = input("Chat ID: ")
     msg = input("Message: ")
 
     if not msg.strip():
         print("Empty message not allowed")
         return
-    
+
     ttl = int(input("TTL seconds (0 = no self-destruct): "))
 
     message_id = crypto.generate_message_id()
     timestamp = int(time.time())
 
     sender_name = username if username else "You"
-    associated_data = f"{message_id}|{sender_name}|{receiver}|{timestamp}".encode()
 
-    nonce, ciphertext = crypto.encrypt_message(
+    # demo mode
+    associated_data = b""
+
+    # original ver.
+    #associated_data = f"{message_id}|{sender_name}|{chat_id}|{timestamp}".encode()
+
+    """
+    b'0' *12 part is only for demo, which let the system can run
+    nonce = b'0' * 12
+    _, ciphertext = crypto.encrypt_message(
         shared_key,
         msg,
         associated_data
     )
 
+    # encode encrypted message into content
+    encrypted_content = encode_bytes(ciphertext)
+
     payload = {
-        "message_id": message_id,
-        "sender": username if username else "You",
-        "receiver": receiver,
-        "timestamp": timestamp,
-        "ttl": ttl,
-        "nonce": encode_bytes(nonce),
-        "ciphertext": encode_bytes(ciphertext)
+        "content": encrypted_content
+    }
+    """
+
+    nonce, ciphertext = crypto.encrypt_message(
+    shared_key,
+    msg,
+    associated_data
+    )
+
+    # encode encrypted message into content
+    encrypted_content = encode_bytes(ciphertext)
+
+    payload = {
+        "content": encrypted_content,
+        "nonce": encode_bytes(nonce)   # 🔥 加呢行
     }
 
-    #res = api.send_message(token, payload)
-    #print(" Sent:", res)
+    res = api.send_message(token, chat_id, payload)
 
-    # Test for fake server response
-    print("\n[Sent] (simulated)")
-    global last_sent_payload
-    last_sent_payload = payload
+    if res:
+        print("[Sent]")
+    else:
+        print("Send failed")
+
 
 def receive_messages(): # Receive Message
     global shared_key
 
-    #res = api.get_messages(token)
+    if not token:
+        print("Please login first")
+        return
 
-    # Test for fake server response
-    global last_sent_payload
-    res = [last_sent_payload] if 'last_sent_payload' in globals() else []
+    chat_id = input("Chat ID: ")
+
+    res = api.get_messages(token, chat_id)
 
     for m in res:
-        message_id = m["message_id"]
-
-        # replay protection
-        if crypto.is_replay(message_id):
-            print("Replay attack detected!")
-            continue
-
-        nonce = decode_bytes(m["nonce"])
-        ciphertext = decode_bytes(m["ciphertext"])
-
-        associated_data = f"{m['message_id']}|{m['sender']}|{m['receiver']}|{m['timestamp']}".encode()
-
         try:
+            content = m.get("content")
+            if not content:
+                continue
+
+            ciphertext = decode_bytes(content)
+
+            # server don't have nonce → use dummy（demo）
+            #nonce = b'0' * 12
+            nonce = decode_bytes(m.get("nonce"))
+
+            message_id = str(hash(content))
+
+            if crypto.is_replay(message_id):
+                print("Replay attack detected!")
+                continue
+
+            associated_data = b""  # server don't have metadata → simplified
+
             plaintext = crypto.decrypt_message(
                 shared_key,
                 nonce,
                 ciphertext,
                 associated_data
             )
+
+            expiry = None  # server do not suport TTL
+
+            local_messages[message_id] = (plaintext, expiry)
+
+            print(f"\n[Delivered]")
+            print(f"[Message] {plaintext}")
+
         except:
-            print("Decryption failed (tampering?)")
-            continue
+            print("Decryption failed")
 
-        now = int(time.time())
 
-        expiry = m["timestamp"] + m["ttl"] if m["ttl"] > 0 else None
-
-        if m["ttl"] > 0 and now > m["timestamp"] + m["ttl"]:
-            print("[Expired] Message expired")
-            continue
-
-        local_messages[message_id] = (plaintext, expiry)
-
-        sender_name = m['sender'] if m['sender'] else "You"
-        print(f"\n[Delivered] Message received")
-        print(f"\n[Message] From {sender_name}: {plaintext}")
-
-def cleanup_messages(): # Self-destruct cleaner
+def cleanup_messages(): # Cleanup
     now = int(time.time())
     to_delete = []
 
@@ -154,17 +189,17 @@ def cleanup_messages(): # Self-destruct cleaner
         print(f"[Expired] Message {mid} expired")
 
 
-def show_inbox(): # Inbox UI
+def show_inbox(): # Inbox
     print("\n[Inbox]:")
 
     if not local_messages:
         print("(No messages)")
         return
-    
+
     for mid, (msg, expiry) in local_messages.items():
-        print(f"From message: {msg}")
-    
-    
+        print(f"[Message] {msg}")
+
+
 def main(): # CLI
     while True:
         cleanup_messages()
@@ -178,10 +213,10 @@ def main(): # CLI
         print("6. Receive Messages")
         print("7. Show Inbox")
         print("0. Exit")
-        print("=====================") 
+        print("=====================")
 
         choice = input("Choose: ")
-        print("=====================") 
+        print("=====================")
 
         if choice == "1":
             do_register()
