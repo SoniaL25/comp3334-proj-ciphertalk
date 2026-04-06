@@ -82,9 +82,16 @@ def send_message(): # Send Message
 
     sender_name = username if username else "You"
 
-    associated_data = f"{message_id}|{sender_name}|{chat_id}|{timestamp}".encode()
+    # demo mode
+    associated_data = b""
 
-    nonce, ciphertext = crypto.encrypt_message(
+    # original ver.
+    #associated_data = f"{message_id}|{sender_name}|{chat_id}|{timestamp}".encode()
+
+    """
+    b'0' *12 part is only for demo, which let the system can run
+    nonce = b'0' * 12
+    _, ciphertext = crypto.encrypt_message(
         shared_key,
         msg,
         associated_data
@@ -95,6 +102,21 @@ def send_message(): # Send Message
 
     payload = {
         "content": encrypted_content
+    }
+    """
+
+    nonce, ciphertext = crypto.encrypt_message(
+    shared_key,
+    msg,
+    associated_data
+    )
+
+    # encode encrypted message into content
+    encrypted_content = encode_bytes(ciphertext)
+
+    payload = {
+        "content": encrypted_content,
+        "nonce": encode_bytes(nonce)   # 🔥 加呢行
     }
 
     res = api.send_message(token, chat_id, payload)
@@ -125,7 +147,8 @@ def receive_messages(): # Receive Message
             ciphertext = decode_bytes(content)
 
             # server don't have nonce → use dummy（demo）
-            nonce = b'0' * 12
+            #nonce = b'0' * 12
+            nonce = decode_bytes(m.get("nonce"))
 
             message_id = str(hash(content))
 
