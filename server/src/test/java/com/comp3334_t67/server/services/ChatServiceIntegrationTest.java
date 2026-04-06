@@ -151,6 +151,43 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void getUnreadMessagesForReceiver_shouldExcludeExpiredMessagesFromDtos() {
+        // Arrange: one expired and one active unread message in the same chat.
+        User sender = userRepo.save(User.builder().email("EXS@EXAMPLE.COM").password("x".getBytes()).build());
+        User receiver = userRepo.save(User.builder().email("EXR@EXAMPLE.COM").password("x".getBytes()).build());
+        FriendChat chat = friendChatRepo.save(FriendChat.builder().user1Id(sender.getId()).user2Id(receiver.getId()).createdAt(LocalDateTime.now()).build());
+
+        messageRepo.save(Message.builder()
+            .chatId(chat.getId())
+            .senderId(sender.getId())
+            .receiverId(receiver.getId())
+            .content("enc-expired")
+            .nonce("expired")
+            .status(MessageStatus.SENT)
+            .createdAt(LocalDateTime.now().minusMinutes(10))
+            .expiresAt(LocalDateTime.now().minusMinutes(1))
+            .build());
+
+        messageRepo.save(Message.builder()
+            .chatId(chat.getId())
+            .senderId(sender.getId())
+            .receiverId(receiver.getId())
+            .content("enc-active")
+            .nonce("active")
+            .status(MessageStatus.SENT)
+            .createdAt(LocalDateTime.now())
+            .expiresAt(LocalDateTime.now().plusMinutes(10))
+            .build());
+
+        // Act: receiver fetches unread messages.
+        List<MessageDto> result = chatService.getUnreadMessagesForReceiver(receiver.getEmail(), chat.getId().toString());
+
+        // Assert: only non-expired message is returned.
+        assertEquals(1, result.size());
+        assertEquals("active", result.get(0).getNonce());
+    }
+
+    @Test
     void getFriendChats_shouldSkipBlockedChats_andSortNewestFirst() {
         // Arrange: create current user with one normal chat and one blocked chat.
         User me = userRepo.save(User.builder().email("ME@EXAMPLE.COM").password("x".getBytes()).build());
@@ -171,6 +208,48 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         assertEquals(friend.getId(), chats.get(0).getSenderId());
         assertEquals(1, chats.get(0).getNumOfUnreadMessage());
         assertEquals(MessageStatus.DELIVERED, messageRepo.findAll().get(0).getStatus());
+    }
+
+    @Test
+    void getFriendChats_shouldExcludeExpiredMessagesFromUnreadCount() {
+        // Arrange: visible chat has one expired unread and one active unread.
+        User me = userRepo.save(User.builder().email("MEC@EXAMPLE.COM").password("x".getBytes()).build());
+        User friend = userRepo.save(User.builder().email("FRC@EXAMPLE.COM").password("x".getBytes()).build());
+
+        FriendChat visibleChat = friendChatRepo.save(FriendChat.builder()
+            .user1Id(me.getId())
+            .user2Id(friend.getId())
+            .createdAt(LocalDateTime.now())
+            .build());
+
+        messageRepo.save(Message.builder()
+            .chatId(visibleChat.getId())
+            .senderId(friend.getId())
+            .receiverId(me.getId())
+            .content("x1")
+            .nonce("n-expired")
+            .status(MessageStatus.SENT)
+            .createdAt(LocalDateTime.now().minusMinutes(10))
+            .expiresAt(LocalDateTime.now().minusMinutes(1))
+            .build());
+
+        messageRepo.save(Message.builder()
+            .chatId(visibleChat.getId())
+            .senderId(friend.getId())
+            .receiverId(me.getId())
+            .content("x2")
+            .nonce("n-active")
+            .status(MessageStatus.SENT)
+            .createdAt(LocalDateTime.now())
+            .expiresAt(LocalDateTime.now().plusMinutes(10))
+            .build());
+
+        // Act: fetch friend-chat summaries.
+        List<FriendChatDto> chats = chatService.getFriendChats(me.getEmail());
+
+        // Assert: unread count excludes expired message.
+        assertEquals(1, chats.size());
+        assertEquals(1, chats.get(0).getNumOfUnreadMessage());
     }
 
     @Test

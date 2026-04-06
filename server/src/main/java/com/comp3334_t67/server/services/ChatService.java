@@ -98,6 +98,9 @@ public class ChatService {
         // fetch unread messages for this chat
         List<Message> unreadMessages = messageRepo.findByReceiverIdAndChatIdAndStatus(receiverId, chatUuid, MessageStatus.SENT);
 
+        // exclude expired messages from delivery/results
+        unreadMessages.removeIf(message -> message.getExpiresAt() != null && message.getExpiresAt().isBefore(LocalDateTime.now()));
+
         // mark them as delivered before returning them
         for (Message message : unreadMessages) {
             message.setStatus(MessageStatus.DELIVERED);
@@ -147,6 +150,7 @@ public class ChatService {
         }
 
         List<Message> unreadMessages = getUnreadMessages(userId, chat.getId());
+
         long unreadCount = unreadMessages.size();
         markMessagesDelivered(unreadMessages);
 
@@ -160,7 +164,13 @@ public class ChatService {
 
     // Load unread messages for a chat.
     private List<Message> getUnreadMessages(UUID userId, UUID chatId) {
-        return messageRepo.findByReceiverIdAndChatIdAndStatus(userId, chatId, MessageStatus.SENT);
+        List<Message> unreadMessages = messageRepo.findByReceiverIdAndChatIdAndStatus(userId, chatId, MessageStatus.SENT);
+
+        // exclude expired messages
+        unreadMessages.removeIf(message -> message.getExpiresAt() != null && message.getExpiresAt().isBefore(LocalDateTime.now()));
+
+        return unreadMessages;
+
     }
 
     // Mark unread messages as delivered.
