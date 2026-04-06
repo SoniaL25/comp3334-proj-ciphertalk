@@ -32,7 +32,7 @@ public class ChatController {
     @PostMapping("/{chatId}")
     public ResponseEntity<ApiResponse<Void>> sendMessage(@PathVariable String chatId, @RequestBody SendMessageRequest request, HttpSession session) {
         String senderEmail = requireSessionEmail(session);
-        chatService.sendMessage(chatId, senderEmail, request.getContent(), request.getNonce());
+        chatService.sendMessage(chatId, senderEmail, request.getContent(), request.getNonce(), request.getClientMessageId(), request.getTag());
 
         return ResponseEntity.ok(ApiResponse.success("Message sent successfully", null));
     }

@@ -21,7 +21,7 @@ public class User {
     @Column(name = "password")
     private byte[] password;
 
-    @Column(name = "identity_public_key")
+    @Column(name = "identity_public_key", columnDefinition = "TEXT")
     private String identityPublicKey;
 
     @Column(name = "key_updated_at")

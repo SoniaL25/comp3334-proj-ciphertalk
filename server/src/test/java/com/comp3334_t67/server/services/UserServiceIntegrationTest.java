@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -88,7 +89,7 @@ class UserServiceIntegrationTest extends IntegrationTestBase {
     @Test
     void getPublicKeyByEmailAndId_shouldReturnSamePayload() {
         // Arrange: persist user with key metadata.
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
         User user = userRepo.save(User.builder().email("PK@EXAMPLE.COM").password("x".getBytes()).identityPublicKey("PEM").keyUpdatedAt(now).build());
 
         // Act: fetch key by both lookup methods.

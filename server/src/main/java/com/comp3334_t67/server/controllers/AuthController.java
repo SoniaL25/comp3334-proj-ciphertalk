@@ -92,6 +92,11 @@ public class AuthController {
             throw new OtpSessionMissingException("No OTP verification in progress");
         }
 
+        if (email != otpRequest.getEmail()) {
+            log.warn("OTP verification failed: email mismatch in session from ip={}", ip);
+            throw new OtpSessionMissingException("Invalid OTP");
+        }
+
         boolean isValid = authService.verifyOtp(email, otpRequest.getOtp());
         if (!isValid) {
             log.warn("OTP verification failed: invalid OTP from ip={}", ip);
