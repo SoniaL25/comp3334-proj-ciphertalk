@@ -16,4 +16,6 @@ public class SendMessageRequest {
     private String clientMessageId;
     private String tag;
 
+    private int ttlMinutes; 
+
 }

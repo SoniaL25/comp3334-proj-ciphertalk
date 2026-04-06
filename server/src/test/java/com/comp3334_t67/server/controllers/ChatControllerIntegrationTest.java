@@ -48,13 +48,14 @@ class ChatControllerIntegrationTest extends IntegrationTestBase {
         req.setNonce("nonce");
         req.setClientMessageId("client-1");
         req.setTag("tag-1");
+        req.setTtlMinutes(10);
 
         // Act: call endpoint.
         var response = controller.sendMessage(chat.getId().toString(), req, session);
 
         // Assert: endpoint succeeds and delegates to service.
         assertTrue(response.getBody().isSuccess());
-        verify(chatService).sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "client-1", "tag-1");
+        verify(chatService).sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "client-1", "tag-1", 10);
     }
 
     @Test

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -51,7 +52,7 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         friendRequestRepo.save(FriendRequest.builder().senderId(sender.getId()).receiverId(receiver.getId()).status(FriendRequestStatus.ACCEPTED).createdAt(LocalDateTime.now()).build());
 
         // Act: send one message.
-        assertDoesNotThrow(() -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce123", "c-msg-1", "tag-1"));
+        assertDoesNotThrow(() -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce123", "c-msg-1", "tag-1", 10));
 
         // Assert: one message was persisted for the chat.
         List<Message> stored = messageRepo.findAll();
@@ -64,7 +65,7 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
     @Test
     void sendMessage_shouldThrow_whenChatIdIsInvalid() {
         // Arrange + Act + Assert: malformed UUID should fail fast.
-        assertThrows(MessageValidationException.class, () -> chatService.sendMessage("bad-id", "A@EXAMPLE.COM", "abc", "nonce", "c-msg-2", "tag-2"));
+        assertThrows(MessageValidationException.class, () -> chatService.sendMessage("bad-id", "A@EXAMPLE.COM", "abc", "nonce", "c-msg-2", "tag-2", 10));
     }
 
     @Test
@@ -75,7 +76,7 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         FriendChat chat = friendChatRepo.save(FriendChat.builder().user1Id(sender.getId()).user2Id(receiver.getId()).createdAt(LocalDateTime.now()).build());
 
         // Act + Assert: friendship check blocks sending.
-        assertThrows(UsersNotFriendsException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "c-msg-3", "tag-3"));
+        assertThrows(UsersNotFriendsException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "c-msg-3", "tag-3", 10));
     }
 
     @Test
@@ -88,7 +89,7 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         blockedUserRepo.save(BlockedUser.builder().userId(sender.getId()).blockedUserId(receiver.getId()).blockedAt(LocalDateTime.now()).build());
 
         // Act + Assert: blocked users cannot message.
-        assertThrows(MessagingBlockedException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "c-msg-4", "tag-4"));
+        assertThrows(MessagingBlockedException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "c-msg-4", "tag-4", 10));
     }
 
     @Test
@@ -100,11 +101,34 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         friendRequestRepo.save(FriendRequest.builder().senderId(sender.getId()).receiverId(receiver.getId()).status(FriendRequestStatus.ACCEPTED).createdAt(LocalDateTime.now()).build());
 
         // Act: first send succeeds, second send with same clientMessageId is rejected.
-        assertDoesNotThrow(() -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce1", "dup-1", "tag-1"));
-        assertThrows(DuplicateMessageException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce2", "dup-1", "tag-2"));
+        assertDoesNotThrow(() -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce1", "dup-1", "tag-1", 10));
+        assertThrows(DuplicateMessageException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce2", "dup-1", "tag-2", 10));
 
         // Assert: only one message exists for this chat/sender/clientMessageId tuple.
         assertEquals(1, messageRepo.findAll().size());
+    }
+
+    @Test
+    void sendMessage_shouldPersistExpiresAt_basedOnTtlMinutes() {
+        // Arrange: create valid sender/receiver friendship.
+        int ttlMinutes = 10;
+        User sender = userRepo.save(User.builder().email("TTL-S@EXAMPLE.COM").password("x".getBytes()).build());
+        User receiver = userRepo.save(User.builder().email("TTL-R@EXAMPLE.COM").password("x".getBytes()).build());
+        FriendChat chat = friendChatRepo.save(FriendChat.builder().user1Id(sender.getId()).user2Id(receiver.getId()).createdAt(LocalDateTime.now()).build());
+        friendRequestRepo.save(FriendRequest.builder().senderId(sender.getId()).receiverId(receiver.getId()).status(FriendRequestStatus.ACCEPTED).createdAt(LocalDateTime.now()).build());
+
+        // Act: send one message with known ttl.
+        assertDoesNotThrow(() -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce-ttl", "ttl-1", "tag-ttl", ttlMinutes));
+
+        // Assert: expiresAt is stored and approximately createdAt + ttlMinutes.
+        Message saved = messageRepo.findAll().get(0);
+        assertEquals(chat.getId(), saved.getChatId());
+        assertTrue(saved.getExpiresAt() != null);
+
+        long diffSeconds = Duration.between(saved.getCreatedAt(), saved.getExpiresAt()).getSeconds();
+        long expectedSeconds = ttlMinutes * 60L;
+        assertTrue(Math.abs(diffSeconds - expectedSeconds) <= 1,
+            "expiresAt should be about ttlMinutes after createdAt");
     }
 
     @Test

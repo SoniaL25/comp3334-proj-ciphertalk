@@ -55,7 +55,7 @@ public class ChatService {
     }
 
     // send message
-    public void sendMessage(String chatId, String senderEmail, String content, String nonce, String clientMessageId, String tag) {
+    public void sendMessage(String chatId, String senderEmail, String content, String nonce, String clientMessageId, String tag, int ttlMinutes) {
         
         // validate input parameters
         validateSendMessageInput(chatId, content, nonce, clientMessageId, tag);
@@ -87,7 +87,7 @@ public class ChatService {
         }
 
         // if all validations pass, create and save the message
-        messageRepo.save(createMessage(chat.getId(), senderId, receiverId, content, nonce, clientMessageId, tag));
+        messageRepo.save(createMessage(chat.getId(), senderId, receiverId, content, nonce, clientMessageId, tag, ttlMinutes));
     }
 
     // Get unread messages for a receiver in one chat
@@ -267,7 +267,7 @@ public class ChatService {
     }
 
     // Build a new outgoing message entity
-    private Message createMessage(UUID chatId, UUID senderId, UUID receiverId, String content, String nonce, String clientMessageId, String tag) {
+    private Message createMessage(UUID chatId, UUID senderId, UUID receiverId, String content, String nonce, String clientMessageId, String tag, int ttlMinutes) {
         return Message.builder()
             .chatId(chatId)
             .senderId(senderId)
@@ -278,7 +278,7 @@ public class ChatService {
             .tag(tag)
             .status(MessageStatus.SENT)
             .createdAt(LocalDateTime.now())
-            .expiresAt(LocalDateTime.now().plusMinutes(MESSAGE_EXPIRATION_MINUTES))
+            .expiresAt(LocalDateTime.now().plusMinutes(ttlMinutes))
             .build();
     }
 
