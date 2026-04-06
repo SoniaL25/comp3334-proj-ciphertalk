@@ -35,6 +35,11 @@ public class FriendRequestService {
             throw new FriendRequestStateException("Cannot send friend request: you are blocked by the user");
         }
 
+        // Check if there is already a pending friend request from sender to receiver
+        if (requestRepo.existsBySenderIdAndReceiverIdAndStatus(senderId, receiverId, FriendRequestStatus.PENDING)) {
+            throw new FriendRequestStateException("Friend request already sent and pending");
+        }
+
         // create a new friend request with status PENDING
         FriendRequest friendRequest = createFriendRequest(senderId, receiverId);
         // save the friend request to the database

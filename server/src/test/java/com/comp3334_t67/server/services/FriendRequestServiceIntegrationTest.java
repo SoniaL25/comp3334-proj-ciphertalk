@@ -59,6 +59,23 @@ class FriendRequestServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void sendFriendRequest_shouldThrow_whenDuplicatePendingRequestExists() {
+        // Arrange: create sender/receiver with existing pending request.
+        User sender = userRepo.save(User.builder().email("DUPS@EXAMPLE.COM").password("x".getBytes()).build());
+        User receiver = userRepo.save(User.builder().email("DUPR@EXAMPLE.COM").password("x".getBytes()).build());
+        friendRequestRepo.save(FriendRequest.builder()
+            .senderId(sender.getId())
+            .receiverId(receiver.getId())
+            .status(FriendRequestStatus.PENDING)
+            .createdAt(LocalDateTime.now())
+            .build());
+
+        // Act + Assert: duplicate pending request is rejected.
+        assertThrows(FriendRequestStateException.class, () -> service.sendFriendRequest(sender.getEmail(), receiver.getEmail()));
+        assertEquals(1, friendRequestRepo.findBySenderIdAndStatus(sender.getId(), FriendRequestStatus.PENDING).size());
+    }
+
+    @Test
     void respondToFriendRequest_shouldAccept_andCreateChat() {
         // Arrange: seed sender, receiver, and pending request.
         User sender = userRepo.save(User.builder().email("A@EXAMPLE.COM").password("x".getBytes()).build());
