@@ -49,7 +49,7 @@ class AuthServiceIntegrationTest extends IntegrationTestBase {
         assertDoesNotThrow(() -> authService.register(email, "secret"));
 
         // Assert: user exists in real database.
-        assertTrue(!userRepo.findByEmail(email).equals(null));
+        assertTrue(userRepo.findByEmail(email) != null);
     }
 
     @Test

@@ -44,7 +44,7 @@ public class ChatService {
         List<FriendChatDto> result = new ArrayList<>();
         for (FriendChat chat : chats) {
             FriendChatDto dto = buildFriendChatDto(chat, userId, blockedUserIds);
-            if (!dto.equals(null)) {
+            if (dto != null) {
                 result.add(dto);
             }
         }

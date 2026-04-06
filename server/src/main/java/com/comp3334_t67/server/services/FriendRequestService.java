@@ -48,12 +48,12 @@ public class FriendRequestService {
             .orElseThrow(() -> new FriendRequestNotFoundException("Friend request not found"));
 
         // only allow response if the request is still pending
-        if (!friendRequest.getStatus().equals(FriendRequestStatus.PENDING)) {
+        if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
             throw new FriendRequestStateException("Friend request has already been responded to");
         }
 
         // check if the receiverId matches the receiverId of the friend request
-        if (!friendRequest.getReceiverId().equals(requireUserIdByEmail(receiverEmail))) {
+        if (!Objects.equals(friendRequest.getReceiverId(), requireUserIdByEmail(receiverEmail))) {
             throw new FriendRequestOwnershipException("Only the receiver can respond to this friend request");
         }
 
@@ -82,12 +82,12 @@ public class FriendRequestService {
             .orElseThrow(() -> new FriendRequestNotFoundException("Friend request not found"));
 
         // only allow cancellation if the request is still pending
-        if (!friendRequest.getStatus().equals(FriendRequestStatus.PENDING)) {
+        if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
             throw new FriendRequestStateException("Friend request has already been responded to");
         }
 
         // check if the senderId matches the senderId of the friend request
-        if (!friendRequest.getSenderId().equals(senderId)) {
+        if (!Objects.equals(friendRequest.getSenderId(), senderId)) {
             throw new FriendRequestOwnershipException("Only the sender can cancel this friend request");
         }
 
