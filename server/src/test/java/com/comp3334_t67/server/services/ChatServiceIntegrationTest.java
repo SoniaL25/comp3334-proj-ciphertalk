@@ -123,7 +123,7 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
         // Assert: expiresAt is stored and approximately createdAt + ttlMinutes.
         Message saved = messageRepo.findAll().get(0);
         assertEquals(chat.getId(), saved.getChatId());
-        assertTrue(saved.getExpiresAt() != null);
+        assertTrue(!saved.getExpiresAt().equals(null));
 
         long diffSeconds = Duration.between(saved.getCreatedAt(), saved.getExpiresAt()).getSeconds();
         long expectedSeconds = ttlMinutes * 60L;

@@ -48,7 +48,7 @@ public class FriendRequestService {
             .orElseThrow(() -> new FriendRequestNotFoundException("Friend request not found"));
 
         // only allow response if the request is still pending
-        if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
+        if (!friendRequest.getStatus().equals(FriendRequestStatus.PENDING)) {
             throw new FriendRequestStateException("Friend request has already been responded to");
         }
 
@@ -82,7 +82,7 @@ public class FriendRequestService {
             .orElseThrow(() -> new FriendRequestNotFoundException("Friend request not found"));
 
         // only allow cancellation if the request is still pending
-        if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
+        if (!friendRequest.getStatus().equals(FriendRequestStatus.PENDING)) {
             throw new FriendRequestStateException("Friend request has already been responded to");
         }
 

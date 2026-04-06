@@ -39,7 +39,7 @@ public class AuthService {
         log.info("Register attempt received");
 
         // check if user already exists
-        if (userRepo.findByEmail(email) != null) {
+        if (!userRepo.findByEmail(email).equals(null)) {
             log.warn("Register rejected: user already exists");
             throw new UserAlreadyExistsException("User with this email already exists");
         }

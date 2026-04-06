@@ -22,7 +22,7 @@ public class OtpFilter extends OncePerRequestFilter {
 
         HttpSession session = request.getSession(false);
 
-        if (session != null) {
+        if (session.equals(null)) {
             Boolean verified = (Boolean) session.getAttribute("OTP_VERIFIED");
 
             String path = request.getRequestURI();
