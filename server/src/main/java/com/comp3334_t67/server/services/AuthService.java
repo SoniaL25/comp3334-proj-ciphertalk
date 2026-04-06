@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import com.comp3334_t67.server.Exceptions.*;
 import com.comp3334_t67.server.models.*;
+import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -22,6 +23,7 @@ import org.slf4j.LoggerFactory;
 public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepo;
     private final EmailService emailService;
@@ -143,9 +145,8 @@ public class AuthService {
 
     // OTP generator
     private int generateOTP() {
-        // generate a random 6-digit OTP
-        int otp = (int)(Math.random() * 900000) + 100000;
-        return otp;
+        // Generate a cryptographically secure 6-digit OTP in [100000, 999999].
+        return SECURE_RANDOM.nextInt(900_000) + 100_000;
     }
 
     // Email Validation
