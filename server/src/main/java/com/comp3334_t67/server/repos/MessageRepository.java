@@ -23,4 +23,7 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     @Transactional
     @Query("DELETE FROM Message m WHERE m.expiresAt IS NOT NULL AND m.expiresAt < :now")
     int deleteExpiredMessages(@Param("now") LocalDateTime now);
+
+    // Check if message with the same (clientMessageId, senderId, chatId) already exists
+    boolean existsByClientMessageIdAndSenderIdAndChatId(String clientMessageId, UUID senderId, UUID chatId);
 }

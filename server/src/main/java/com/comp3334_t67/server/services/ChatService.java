@@ -64,6 +64,11 @@ public class ChatService {
         FriendChat chat = chatRepo.findById(UUID.fromString(chatId))
             .orElseThrow(() -> new ChatNotFoundException("Chat not found"));
 
+        // check for resend messages
+        if (messageRepo.existsByClientMessageIdAndSenderIdAndChatId(clientMessageId, requireUserIdByEmail(senderEmail), UUID.fromString(chatId))) {
+            throw new DuplicateMessageException("A message with the same clientMessageId has already been sent in this chat by the sender");
+        }
+
         // check 1: chat belongs to sender
         if (!chat.getUser1Id().equals(senderId) && !chat.getUser2Id().equals(senderId)) {
             throw new ChatMembershipException("Sender does not belong to the chat");

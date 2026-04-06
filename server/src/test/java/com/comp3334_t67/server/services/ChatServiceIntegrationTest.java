@@ -18,6 +18,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.comp3334_t67.server.IntegrationTestBase;
 import com.comp3334_t67.server.Exceptions.ChatMembershipException;
+import com.comp3334_t67.server.Exceptions.DuplicateMessageException;
 import com.comp3334_t67.server.Exceptions.MessageValidationException;
 import com.comp3334_t67.server.Exceptions.MessagingBlockedException;
 import com.comp3334_t67.server.Exceptions.UsersNotFriendsException;
@@ -88,6 +89,22 @@ class ChatServiceIntegrationTest extends IntegrationTestBase {
 
         // Act + Assert: blocked users cannot message.
         assertThrows(MessagingBlockedException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce", "c-msg-4", "tag-4"));
+    }
+
+    @Test
+    void sendMessage_shouldThrow_whenDuplicateClientMessageIdIsResent() {
+        // Arrange: create valid chat and friendship.
+        User sender = userRepo.save(User.builder().email("DUPS@EXAMPLE.COM").password("x".getBytes()).build());
+        User receiver = userRepo.save(User.builder().email("DUPR@EXAMPLE.COM").password("x".getBytes()).build());
+        FriendChat chat = friendChatRepo.save(FriendChat.builder().user1Id(sender.getId()).user2Id(receiver.getId()).createdAt(LocalDateTime.now()).build());
+        friendRequestRepo.save(FriendRequest.builder().senderId(sender.getId()).receiverId(receiver.getId()).status(FriendRequestStatus.ACCEPTED).createdAt(LocalDateTime.now()).build());
+
+        // Act: first send succeeds, second send with same clientMessageId is rejected.
+        assertDoesNotThrow(() -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce1", "dup-1", "tag-1"));
+        assertThrows(DuplicateMessageException.class, () -> chatService.sendMessage(chat.getId().toString(), sender.getEmail(), "abc123==", "nonce2", "dup-1", "tag-2"));
+
+        // Assert: only one message exists for this chat/sender/clientMessageId tuple.
+        assertEquals(1, messageRepo.findAll().size());
     }
 
     @Test
