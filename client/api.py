@@ -34,6 +34,8 @@ def login(username, password):
             "email": username,
             "password": password
         })
+        # sonia for testing
+        print("Login response status:", res.status_code)
 
         if res.status_code == 200:
             data = res.json()
