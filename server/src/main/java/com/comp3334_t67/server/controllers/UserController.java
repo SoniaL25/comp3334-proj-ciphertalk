@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import com.comp3334_t67.server.services.*;
 import com.comp3334_t67.server.dtos.*;
 import jakarta.servlet.http.HttpSession;
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/api")
@@ -14,6 +15,10 @@ import jakarta.servlet.http.HttpSession;
 public class UserController {
     
     private final UserService userService;
+    private final RateLimitService rateLimitService;
+
+    private final int KEY_MAX_UPLOADS = 3; // e.g. max 3 public key uploads per 5 minutes
+    private final Duration KEY_UPLOAD_DURATION = Duration.ofMinutes(5);
 
     // ACCESS SELF INFO
 
@@ -28,13 +33,17 @@ public class UserController {
     @GetMapping("/profile/public-key")
     public ResponseEntity<ApiResponse<KeyDto>> getPublicKey(HttpSession session) {
         String email = requireSessionEmail(session);
-        return ResponseEntity.ok(ApiResponse.success("Public key retrieved successfully", userService.getPublicKey(email)));
+        return ResponseEntity.ok(ApiResponse.success("Public key retrieved successfully", userService.getPublicKeyByEmail(email)));
     }
 
     // upload user in session's public key
     @PutMapping("/profile/public-key")
     public ResponseEntity<ApiResponse<Void>> uploadPublicKey(@RequestBody UploadPublicKeyRequest request, HttpSession session) {
         String email = requireSessionEmail(session);
+        
+        String key = "upload-public-key:user:" + email;
+        rateLimitService.assertAllowed(key, KEY_MAX_UPLOADS, KEY_UPLOAD_DURATION);
+
         userService.uploadPublicKey(email, request.getPublicKey());
         return ResponseEntity.ok(ApiResponse.success("Public key uploaded successfully", null));
     }
@@ -49,9 +58,9 @@ public class UserController {
     }
 
     // get other user's public key by their user ID
-    @GetMapping("/users/{userId}/public-key") // TODO: need more security
+    @GetMapping("/users/{userId}/public-key")
     public ResponseEntity<ApiResponse<KeyDto>> getPublicKey(@PathVariable String userId) {
-        return ResponseEntity.ok(ApiResponse.success("Public key retrieved successfully", userService.getPublicKey(userId)));
+        return ResponseEntity.ok(ApiResponse.success("Public key retrieved successfully", userService.getPublicKeyById(userId)));
     }
 
 

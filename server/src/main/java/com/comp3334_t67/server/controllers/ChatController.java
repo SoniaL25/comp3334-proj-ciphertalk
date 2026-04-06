@@ -18,7 +18,6 @@ import java.util.*;
 @RequestMapping("/api/chats")
 public class ChatController {
 
-    private final MessageService messageService;
     private final ChatService chatService;
 
     // get all friend chats for user in session
@@ -38,11 +37,11 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success("Message sent successfully", null));
     }
 
-    // receiver gets messages TODO: message dto
+    // receiver gets messages
     @GetMapping("/{chatId}")
     public ResponseEntity<ApiResponse<List<MessageDto>>> getMessages(@PathVariable String chatId, HttpSession session) {
         String email = requireSessionEmail(session);
-        List<MessageDto> messages = messageService.getUnreadMessagesForReceiver(email,chatId);
+        List<MessageDto> messages = chatService.getUnreadMessagesForReceiver(email, chatId);
         return ResponseEntity.ok(ApiResponse.success("Messages retrieved successfully", messages));
     }
 

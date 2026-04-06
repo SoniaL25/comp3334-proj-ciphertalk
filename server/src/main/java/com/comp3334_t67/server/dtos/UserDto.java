@@ -7,7 +7,6 @@ import lombok.Data;
 @Builder
 public class UserDto {
 
-    // TODO: is this class necessary?  
     private String email;
     
 }

@@ -4,6 +4,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.*;
 import java.time.Duration;
@@ -22,8 +24,10 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public class AuthController {
 
-    private final int RATE_LIMIT_WINDOW = 5;
-    private final int RATE_LIMIT_LIMIT = 10;
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
+    private final int AUTH_EXPIRY_MINUTES = 10;
+    private final int AUTH_MAX_ATTEMPTS = 5;
 
     private final AuthService authService;
     private final RateLimitService rateLimitService;
@@ -36,19 +40,28 @@ public class AuthController {
 
     // Register
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<Void>> register(@RequestBody AuthRequest registerRequest) {
-        String key = "register:" + registerRequest.getEmail();
-        rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
+    public ResponseEntity<ApiResponse<Void>> register(HttpServletRequest request, @RequestBody AuthRequest registerRequest) {
+        
+        String ip = request.getRemoteAddr();
+        log.info("Register request received from ip={}", ip);
 
+        // Apply rate limiting to registration endpoint
+        String key = "register:ip:" + ip;
+        rateLimitService.assertAllowed(key, AUTH_MAX_ATTEMPTS, Duration.ofMinutes(AUTH_EXPIRY_MINUTES));
+
+        // Register the user
         authService.register(registerRequest.getEmail(), registerRequest.getPassword());
+        log.info("Register request succeeded from ip={}", ip);
         return ResponseEntity.ok(ApiResponse.success("User registered successfully", null));
     }
 
     // login
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Void>> login(HttpServletRequest request, @RequestBody AuthRequest loginRequest) {
-        String key = "login:" + loginRequest.getEmail();
-        rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
+        String ip = request.getRemoteAddr();
+        log.info("Login request received from ip={}", ip);
+        String key = "login:ip:" + ip;
+        rateLimitService.assertAllowed(key, AUTH_MAX_ATTEMPTS, Duration.ofMinutes(AUTH_EXPIRY_MINUTES));
 
         authService.login(loginRequest.getEmail(), loginRequest.getPassword());
 
@@ -57,24 +70,31 @@ public class AuthController {
         session.setAttribute("OTP_USER", loginRequest.getEmail());
         session.setAttribute("OTP_VERIFIED", false);
 
+        log.info("Login request accepted and OTP flow started from ip={}", ip);
+
         return ResponseEntity.ok(ApiResponse.success("OTP sent", null));
     }
 
     // verify OTP
     @PostMapping("/verify-otp")
     public ResponseEntity<ApiResponse<Void>> verifyOtp(HttpServletRequest request, @RequestBody OtpVerificationRequest otpRequest) {
+        String ip = request.getRemoteAddr();
+        log.info("OTP verification request received from ip={}", ip);
         HttpSession session = request.getSession(false);
         if (session == null) {
+            log.warn("OTP verification failed: no active session from ip={}", ip);
             throw new OtpSessionMissingException("No active session");
         }
 
         String email = (String) session.getAttribute("OTP_USER");
         if (email == null) {
+            log.warn("OTP verification failed: no OTP flow in session from ip={}", ip);
             throw new OtpSessionMissingException("No OTP verification in progress");
         }
 
         boolean isValid = authService.verifyOtp(email, otpRequest.getOtp());
         if (!isValid) {
+            log.warn("OTP verification failed: invalid OTP from ip={}", ip);
             throw new OtpInvalidException("Invalid OTP");
         }
 
@@ -82,10 +102,13 @@ public class AuthController {
         session.setAttribute("OTP_VERIFIED", true);
         request.changeSessionId();
 
+        // Set authentication in security context (user, credentials, authorities)
         UsernamePasswordAuthenticationToken auth =
             new UsernamePasswordAuthenticationToken(email, null, List.of());
 
+        // store auth in current context
         SecurityContextHolder.getContext().setAuthentication(auth);
+        log.info("OTP verification succeeded from ip={}", ip);
         
         return ResponseEntity.ok(ApiResponse.success("OTP verified, login successful", null));
 
@@ -94,8 +117,11 @@ public class AuthController {
     // logout
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
+        String ip = request.getRemoteAddr();
+        log.info("Logout request received from ip={}", ip);
         request.getSession().invalidate();
         SecurityContextHolder.clearContext();
+        log.info("Logout request succeeded from ip={}", ip);
         return ResponseEntity.ok(ApiResponse.success("Logged out successfully", null));
     }
 

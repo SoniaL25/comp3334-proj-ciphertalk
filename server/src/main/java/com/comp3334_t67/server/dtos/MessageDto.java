@@ -15,6 +15,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class MessageDto {
     private String content;
+    private String nonce;
+    private String clientMessageId;
+    private String tag;
     private LocalDateTime sentAt;
     private MessageStatus status;
 }

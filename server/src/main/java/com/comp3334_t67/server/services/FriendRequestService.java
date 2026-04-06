@@ -38,13 +38,19 @@ public class FriendRequestService {
     }
 
     // Reponse to friend request
-    public void respondToFriendRequest(String requestId, boolean accept) {
+    public void respondToFriendRequest(String receiverEmail, String requestId, boolean accept) {
         // find the friend request by id
         FriendRequest friendRequest = requestRepo.findById(UUID.fromString(requestId))
             .orElseThrow(() -> new FriendRequestNotFoundException("Friend request not found"));
 
+        // only allow response if the request is still pending
         if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
-            throw new FriendRequestStateException("Friend request is not pending");
+            throw new FriendRequestStateException("Friend request has already been responded to");
+        }
+
+        // check if the receiverId matches the receiverId of the friend request
+        if (!friendRequest.getReceiverId().equals(requireUserIdByEmail(receiverEmail))) {
+            throw new FriendRequestOwnershipException("Only the receiver can respond to this friend request");
         }
 
         // update the status of the friend request based on the response
@@ -57,6 +63,7 @@ public class FriendRequestService {
 
         } else {
             friendRequest.setStatus(FriendRequestStatus.REJECTED);
+            friendRequest.setRespondedAt(LocalDateTime.now());
         }
 
         // save the updated friend request to the database
@@ -70,8 +77,9 @@ public class FriendRequestService {
         FriendRequest friendRequest = requestRepo.findById(UUID.fromString(requestId))
             .orElseThrow(() -> new FriendRequestNotFoundException("Friend request not found"));
 
+        // only allow cancellation if the request is still pending
         if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
-            throw new FriendRequestStateException("Friend request is not pending");
+            throw new FriendRequestStateException("Friend request has already been responded to");
         }
 
         // check if the senderId matches the senderId of the friend request
@@ -81,6 +89,7 @@ public class FriendRequestService {
 
         // update the status of the friend request to CANCELED
         friendRequest.setStatus(FriendRequestStatus.CANCELED);
+        friendRequest.setRespondedAt(LocalDateTime.now());
         // save the updated friend request to the database
         requestRepo.save(friendRequest);
     }
@@ -155,24 +164,3 @@ public class FriendRequestService {
     }
 
 }
-
-// Chat chat = executeWithHandling(() -> {
-//     return chatRepo.findById(id)
-//         .orElseThrow(() -> new ChatNotFoundException("Chat not found"));
-// });
-
-// public <T> T executeWithHandling(
-//     Supplier<T> action,
-//     Function<Exception, RuntimeException> errorHandler
-// ) {
-//     try {
-//         return action.get();
-//     } catch (Exception e) {
-//         throw errorHandler.apply(e);
-//     }
-// }
-
-// Chat chat = executeWithHandling(
-//     () -> chatRepo.findById(id).orElseThrow(),
-//     e -> new ChatNotFoundException("Chat not found: " + id)
-// );

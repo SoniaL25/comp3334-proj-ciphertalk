@@ -13,7 +13,7 @@ import java.time.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "messages")
+@Table(name = "messages", uniqueConstraints = @UniqueConstraint(columnNames = {"chat_id", "sender_id", "client_message_id"}))
 public class Message {
 
     @Id
@@ -32,6 +32,12 @@ public class Message {
     @Column(name = "nonce")
     private String nonce;
 
+    @Column(name = "client_message_id")
+    private String clientMessageId;
+
+    @Column(name = "tag")
+    private String tag;
+
     @Column(name = "content")
     private String content;
 
@@ -43,11 +49,5 @@ public class Message {
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
-
-    @Column(name = "delivered_at")
-    private LocalDateTime deliveredAt;
-
-    @Column(name = "read_at")
-    private LocalDateTime readAt;
 
 }

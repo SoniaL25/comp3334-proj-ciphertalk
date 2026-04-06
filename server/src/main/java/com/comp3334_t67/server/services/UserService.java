@@ -1,15 +1,13 @@
 package com.comp3334_t67.server.services;
 
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
-import com.comp3334_t67.server.Exceptions.SelfBlockNotAllowedException;
-import com.comp3334_t67.server.Exceptions.UserNotFoundException;
-import com.comp3334_t67.server.dtos.KeyDto;
-import com.comp3334_t67.server.models.BlockedUser;
-import com.comp3334_t67.server.models.User;
-import com.comp3334_t67.server.dtos.UserDto;
+import com.comp3334_t67.server.Exceptions.*;
+import com.comp3334_t67.server.dtos.*;
+import com.comp3334_t67.server.models.*;
 import com.comp3334_t67.server.repos.*;
 
 import lombok.AllArgsConstructor;
@@ -17,18 +15,13 @@ import lombok.AllArgsConstructor;
 @Service
 @AllArgsConstructor
 public class UserService {
-    
+
+
+    private final KeyValidator keyValidator;
     private final UserRepository userRepo;
     private final BlockedUserRepository blockedUserRepo;
 
-    // Get user by ID
-    public UserDto getUserInfoById(String userId) {
-        User user = requireUserById(userId);
-        return UserDto.builder()
-                .email(user.getEmail())
-                .build();
-    }
-
+    // Get user by email
     public UserDto getUserInfoByEmail(String email) {
         User user = requireUserByEmail(email);
         return UserDto.builder()
@@ -37,6 +30,14 @@ public class UserService {
 
     }
 
+    // Get user by ID
+    public UserDto getUserInfoById(String userId) {
+        User user = requireUserById(userId);
+        return UserDto.builder()
+                .email(user.getEmail())
+                .build();
+    }
+    
     // Delete user by ID
     public void deleteUserById(String userId) {
         User user = requireUserById(userId);
@@ -44,19 +45,38 @@ public class UserService {
     }
 
     // Update user's public key
-    public void uploadPublicKey(String userId, String publicKey) {
-        User user = requireUserById(userId);
-        
+    public void uploadPublicKey(String email, String publicKey) {
+        // Validate the public key
+        keyValidator.validateAndParseRsaPublicKey(publicKey);
+
+        // Get user
+        User user = requireUserByEmail(email);
+
+        // update public key and timestamp
         user.setIdentityPublicKey(publicKey);
+        user.setKeyUpdatedAt(LocalDateTime.now());
         userRepo.save(user);
     }
 
     // Get user's public key
-    public KeyDto getPublicKey(String userId) {
-        User user = requireUserById(userId);
-        
+    public KeyDto getPublicKeyByEmail(String email) {
+        // Get user
+        User user = requireUserByEmail(email);
+        // return public key and timestamp
         return KeyDto.builder()
                 .publicKey(user.getIdentityPublicKey())
+                .uploadedAt(user.getKeyUpdatedAt())
+                .build();
+    }
+
+    // Get other users' public key
+    public KeyDto getPublicKeyById(String userId) {
+        // Get user
+        User user = requireUserById(userId);
+        // return public key and timestamp
+        return KeyDto.builder()
+                .publicKey(user.getIdentityPublicKey())
+                .uploadedAt(user.getKeyUpdatedAt())
                 .build();
     }
 
@@ -108,5 +128,7 @@ public class UserService {
         }
         return user;
     }
+
+
 
 }

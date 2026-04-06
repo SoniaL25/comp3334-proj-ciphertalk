@@ -17,27 +17,27 @@ import java.util.*;
 @AllArgsConstructor
 public class FriendRequestController {
 
-    private final int RATE_LIMIT_WINDOW = 5;
-    private final int RATE_LIMIT_LIMIT = 10;
-
+    private final int REQUEST_WINDOW = 10; // 10 minutes
+    private final int MAX_REQUESTS_PER_WINDOW = 5;
     private final FriendRequestService friendService;
     private final RateLimitService rateLimitService;
 
     // Send friend request
     @PostMapping("/send")
     public ResponseEntity<ApiResponse<Void>> sendFriendRequest(@RequestBody FriendReqRequest requestDto, HttpSession session) {
-        String sendEmail = (String) session.getAttribute("OTP_USER");
-        String key = "friend-request:" + sendEmail;
-        rateLimitService.assertAllowed(key, RATE_LIMIT_LIMIT, Duration.ofMinutes(RATE_LIMIT_WINDOW));
+        String senderEmail = (String) session.getAttribute("OTP_USER");
+        String key = "friend-request:user:" + senderEmail;
+        rateLimitService.assertAllowed(key, MAX_REQUESTS_PER_WINDOW, Duration.ofMinutes(REQUEST_WINDOW));
 
-        friendService.sendFriendRequest(sendEmail, requestDto.getReceiverEmail());
+        friendService.sendFriendRequest(senderEmail, requestDto.getReceiverEmail());
         return ResponseEntity.ok(ApiResponse.success("Friend request sent successfully", null));
     }
 
     // Respond to friend request
     @PutMapping("/{requestId}/respond")
-    public ResponseEntity<ApiResponse<Void>> respondToFriendRequest(@PathVariable String requestId, @RequestBody ActionRequest requestDto) {
-        friendService.respondToFriendRequest(requestId, requestDto.isAccepted());
+    public ResponseEntity<ApiResponse<Void>> respondToFriendRequest(@PathVariable String requestId, @RequestBody ActionRequest requestDto, HttpSession session) {
+        String receiverEmail = (String) session.getAttribute("OTP_USER");
+        friendService.respondToFriendRequest(receiverEmail, requestId, requestDto.isAccepted());
         return ResponseEntity.ok(ApiResponse.success("response sent successfully", null));
     }
 

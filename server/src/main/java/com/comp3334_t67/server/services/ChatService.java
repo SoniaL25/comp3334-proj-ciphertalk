@@ -1,19 +1,12 @@
 package com.comp3334_t67.server.services;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import com.comp3334_t67.server.Exceptions.ChatMembershipException;
-import com.comp3334_t67.server.Exceptions.ChatNotFoundException;
-import com.comp3334_t67.server.Exceptions.MessageValidationException;
-import com.comp3334_t67.server.Exceptions.MessagingBlockedException;
-import com.comp3334_t67.server.Exceptions.UserNotFoundException;
-import com.comp3334_t67.server.Exceptions.UsersNotFriendsException;
-import com.comp3334_t67.server.enums.FriendRequestStatus;
-import com.comp3334_t67.server.enums.MessageStatus;
-import com.comp3334_t67.server.dtos.FriendChatDto;
+import com.comp3334_t67.server.Exceptions.*;
+import com.comp3334_t67.server.enums.*;
+import com.comp3334_t67.server.dtos.*;
 import com.comp3334_t67.server.models.*;
 import com.comp3334_t67.server.repos.*;
 import java.util.*;
@@ -25,8 +18,9 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public class ChatService {
 
-    private static final int MAX_MESSAGE_HASH_LENGTH = 4096;
-    private static final int MAX_NONCE_LENGTH = 512;
+    private static final int MAX_MESSAGE_HASH_LENGTH = 4096; // 4KB hash size limit
+    private static final int MAX_NONCE_LENGTH = 12; // 12 bytes nonce size limit
+    private static final int MESSAGE_EXPIRATION_MINUTES = 10;
     private static final String HASH_FORMAT_REGEX = "^[A-Za-z0-9+/=._:-]+$";
     
     private final FriendChatRepository chatRepo;
@@ -35,35 +29,79 @@ public class ChatService {
     private final BlockedUserRepository blockedUserRepo;
     private final UserRepository userRepo;
 
+    
+    // Get all friend chats for a user
+    public List<FriendChatDto> getFriendChats(String userEmail) {
+
+        // get user id, blocked user ids, and all chats for the user
+        UUID userId = requireUserIdByEmail(userEmail);
+        // collect blocked user ids for quick lookup
+        Set<UUID> blockedUserIds = getBlockedUserIds(userId);
+        // load all chats where the user is either user1 or user2
+        List<FriendChat> chats = chatRepo.findAllByUserId(userId);
+
+        // build response dtos, skipping blocked chats
+        List<FriendChatDto> result = new ArrayList<>();
+        for (FriendChat chat : chats) {
+            FriendChatDto dto = buildFriendChatDto(chat, userId, blockedUserIds);
+            if (dto != null) {
+                result.add(dto);
+            }
+        }
+
+        // Keep newest chats first.
+        result.sort(Comparator.comparing(FriendChatDto::getLastMessageDateTime, Comparator.nullsLast(Comparator.naturalOrder())).reversed());
+        return result;
+    }
+
     // send message
     public void sendMessage(String chatId, String senderEmail, String content, String nonce) {
+        
+        // validate input parameters
         validateSendMessageInput(chatId, content, nonce);
 
         UUID senderId = requireUserIdByEmail(senderEmail);
         FriendChat chat = chatRepo.findById(UUID.fromString(chatId))
             .orElseThrow(() -> new ChatNotFoundException("Chat not found"));
 
+        // check 1: chat belongs to sender
+        if (!chat.getUser1Id().equals(senderId) && !chat.getUser2Id().equals(senderId)) {
+            throw new ChatMembershipException("Sender does not belong to the chat");
+        }
+
         UUID receiverId = resolveCounterparty(chat, senderId);
 
+        // check 2: sender and receiver are accepted friends
         if (!areAcceptedFriends(senderId, receiverId)) {
             throw new UsersNotFriendsException("Users are not accepted friends");
         }
 
+        // check 3: sender and receiver have not blocked each other
         if (isBlocked(senderId, receiverId)) {
             throw new MessagingBlockedException("Messaging is blocked between these users");
         }
 
-        Message message = Message.builder()
-            .chatId(chat.getId())
-            .senderId(senderId)
-            .receiverId(receiverId)
-            .content(content)
-            .nonce(nonce)
-            .status(MessageStatus.SENT)
-            .createdAt(LocalDateTime.now())
-            .build();
+        // if all validations pass, create and save the message
+        messageRepo.save(createMessage(chat.getId(), senderId, receiverId, content, nonce));
+    }
 
-        messageRepo.save(message);
+    // Get unread messages for a receiver in one chat
+    public List<MessageDto> getUnreadMessagesForReceiver(String receiverEmail, String chatId) {
+        UUID receiverId = requireUserIdByEmail(receiverEmail);
+        UUID chatUuid = UUID.fromString(chatId);
+
+        // fetch unread messages for this chat
+        List<Message> unreadMessages = messageRepo.findByReceiverIdAndChatIdAndStatus(receiverId, chatUuid, MessageStatus.SENT);
+
+        // mark them as delivered before returning them
+        for (Message message : unreadMessages) {
+            message.setStatus(MessageStatus.DELIVERED);
+            messageRepo.save(message);
+        }
+
+        return unreadMessages.stream()
+            .map(this::toMessageDto)
+            .toList();
     }
 
     // Remove a friend
@@ -85,80 +123,59 @@ public class ChatService {
         }
     }
 
-    // Get all friend chats for a user
-    public List<FriendChatDto> getFriendChats(String userEmail) {
+     // HELPER METHODS ============================
 
-        // get user id by email, throw exception if user not found
-        UUID userId = requireUserIdByEmail(userEmail);
-
-        // get all blocked users by user
-        Set<UUID> blockedUserIds = blockedUserRepo.findByUserId(userId)
+    // Collect blocked user ids for quick lookup.
+    private Set<UUID> getBlockedUserIds(UUID userId) {
+        return blockedUserRepo.findByUserId(userId)
             .stream()
             .map(BlockedUser::getBlockedUserId)
             .collect(Collectors.toSet());
+    }
 
-        // result = list of friend chat dtos to return
-        List<FriendChatDto> result = new ArrayList<>();
-        // get all friend chats involving the user
-        List<FriendChat> chats = chatRepo.findAllByUserId(userId);
+    // Build one chat summary, or skip it if blocked.
+    private FriendChatDto buildFriendChatDto(FriendChat chat, UUID userId, Set<UUID> blockedUserIds) {
+        UUID counterpartyId = resolveCounterparty(chat, userId);
 
-        // loop through each chat and construct the dto
-        for (FriendChat chat : chats) {
-
-            // get other user id from chat
-            UUID counterpartyId = resolveCounterparty(chat, userId);
-
-            // Ignore chats that current user has blocked.
-            if (blockedUserIds.contains(counterpartyId)) {
-                continue;
-            }
-            
-            // Get all unread messages for the user in the chat
-            List<Message> unreadMessages = messageRepo.findByReceiverIdAndChatIdAndStatus(userId, chat.getId(), MessageStatus.SENT);
-            // count number of unread messages
-            long unreadCount = unreadMessages.size();
-
-            // Update status of unread messages to "delivered"
-            if (!unreadMessages.isEmpty()) {
-                LocalDateTime deliveredAt = LocalDateTime.now();
-                for (Message message : unreadMessages) {
-                    message.setStatus(MessageStatus.DELIVERED);
-                    message.setDeliveredAt(deliveredAt);
-                }
-                messageRepo.saveAll(unreadMessages);
-            }
-
-            // Get timestamp of the last message in the chat, or use chat creation time if no messages
-            LocalDateTime lastMessageDateTime = messageRepo.findTopByChatIdOrderByCreatedAtDesc(chat.getId())
-                .map(Message::getCreatedAt)
-                .orElse(chat.getCreatedAt());
-
-            result.add(
-                FriendChatDto.builder()
-                    .senderId(counterpartyId)
-                    .receiverId(userId)
-                    .numOfUnreadMessage(unreadCount)
-                    .lastMessageDateTime(lastMessageDateTime)
-                    .build()
-            );
+        if (blockedUserIds.contains(counterpartyId)) {
+            return null;
         }
 
-        // sort result by last message timestamp in descending order, with nulls (no messages) last
-        result.sort(Comparator.comparing(FriendChatDto::getLastMessageDateTime, Comparator.nullsLast(Comparator.naturalOrder())).reversed());
+        List<Message> unreadMessages = getUnreadMessages(userId, chat.getId());
+        long unreadCount = unreadMessages.size();
+        markMessagesDelivered(unreadMessages);
 
-        return result;
+        return FriendChatDto.builder()
+            .senderId(counterpartyId)
+            .receiverId(userId)
+            .numOfUnreadMessage(unreadCount)
+            .lastMessageDateTime(getLastMessageTime(chat))
+            .build();
     }
 
-    // Check if two users are friends
-    public boolean areFriends(String userEmail1, String userEmail2) {
-        UUID userId1 = requireUserIdByEmail(userEmail1);
-        UUID userId2 = requireUserIdByEmail(userEmail2);
-        // check if there is a friend chat between the two users
-        FriendChat friendChat = chatRepo.findByUser1IdAndUser2Id(userId1, userId2);
-        return friendChat != null;
+    // Load unread messages for a chat.
+    private List<Message> getUnreadMessages(UUID userId, UUID chatId) {
+        return messageRepo.findByReceiverIdAndChatIdAndStatus(userId, chatId, MessageStatus.SENT);
     }
 
-     // HELPER METHODS ============================
+    // Mark unread messages as delivered.
+    private void markMessagesDelivered(List<Message> unreadMessages) {
+        if (unreadMessages.isEmpty()) {
+            return;
+        }
+
+        for (Message message : unreadMessages) {
+            message.setStatus(MessageStatus.DELIVERED);
+        }
+        messageRepo.saveAll(unreadMessages);
+    }
+
+    // Use the latest message time, or the chat time if empty.
+    private LocalDateTime getLastMessageTime(FriendChat chat) {
+        return messageRepo.findTopByChatIdOrderByCreatedAtDesc(chat.getId())
+            .map(Message::getCreatedAt)
+            .orElse(chat.getCreatedAt());
+    }
 
     // Get user id by email, throw exception if user not found
     private UUID requireUserIdByEmail(String email) {
@@ -169,6 +186,7 @@ public class ChatService {
         return user.getId();
     }
 
+    // get the other user's id in the chat, given one user's id
     private UUID resolveCounterparty(FriendChat chat, UUID senderId) {
         if (chat.getUser1Id().equals(senderId)) {
             return chat.getUser2Id();
@@ -179,6 +197,7 @@ public class ChatService {
         throw new ChatMembershipException("Sender does not belong to the chat");
     }
 
+    // Check if two users are accepted friends by verifying that they have a friend chat and an accepted friend request between them
     private boolean areAcceptedFriends(UUID userA, UUID userB) {
         boolean hasChat = chatRepo.findByUsers(userA, userB).isPresent();
         boolean hasAcceptedRequest = requestRepo.existsBySenderIdAndReceiverIdAndStatus(userA, userB, FriendRequestStatus.ACCEPTED)
@@ -187,15 +206,17 @@ public class ChatService {
         return hasChat && hasAcceptedRequest;
     }
 
+    // Check if either user has blocked the other
     private boolean isBlocked(UUID userA, UUID userB) {
         return blockedUserRepo.existsByUserIdAndBlockedUserId(userA, userB)
             || blockedUserRepo.existsByUserIdAndBlockedUserId(userB, userA);
     }
 
+    // validate input for sending message, throw exception if invalid
     private void validateSendMessageInput(String chatId, String content, String nonce) {
         try {
             UUID.fromString(chatId);
-        } catch (IllegalArgumentException ex) {
+        } catch (RuntimeException ex) {
             throw new MessageValidationException("Invalid chatId format");
         }
 
@@ -218,6 +239,32 @@ public class ChatService {
         if (nonce.length() > MAX_NONCE_LENGTH) {
             throw new MessageValidationException("Nonce exceeds size limit");
         }
+    }
+
+    // Convert a message entity into a response DTO
+    private MessageDto toMessageDto(Message message) {
+        return MessageDto.builder()
+            .content(message.getContent())
+            .nonce(message.getNonce())
+            .clientMessageId(message.getClientMessageId())
+            .tag(message.getTag())
+            .sentAt(message.getCreatedAt())
+            .status(message.getStatus())
+            .build();
+    }
+
+    // Build a new outgoing message entity
+    private Message createMessage(UUID chatId, UUID senderId, UUID receiverId, String content, String nonce) {
+        return Message.builder()
+            .chatId(chatId)
+            .senderId(senderId)
+            .receiverId(receiverId)
+            .content(content)
+            .nonce(nonce)
+            .status(MessageStatus.SENT)
+            .createdAt(LocalDateTime.now())
+            .expiresAt(LocalDateTime.now().plusMinutes(MESSAGE_EXPIRATION_MINUTES))
+            .build();
     }
 
     
