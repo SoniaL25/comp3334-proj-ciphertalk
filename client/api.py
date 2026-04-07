@@ -10,7 +10,10 @@ BASE_URL = "http://localhost:8080"
 # Mock storage (for fallback)
 mock_db = {}
 mock_friend_requests = {
-    "test_user": ["alice"]
+    "test_user": [
+        {"id": "1", "fromUser": "bob"},
+        {"id": "2", "fromUser": "charlie"}
+    ]
 }
 mock_friends = {
     "test_user": ["bob"]
@@ -62,7 +65,7 @@ def login(username, password):
 
 
 def verify_otp(email, otp):
-    url = f"{BASE_URL}/api/auth/verify"
+    url = f"{BASE_URL}/api/auth/verify-otp"
 
     try:
         res = requests.post(url, json={
@@ -108,13 +111,18 @@ def send_friend_request(token, to_user):
     # FALLBACK
     print("[MOCK] Friend request sent locally")
 
-    mock_friend_requests.setdefault(to_user, []).append("mock_user")
+    new_request = {
+    "id": str(len(mock_friend_requests.get(to_user, [])) + 1),
+    "fromUser": "mock_user"
+    }
+
+    mock_friend_requests.setdefault(to_user, []).append(new_request)
 
     return {"status": "mock_request_sent"}
 
 
-def accept_friend_request(token, user, from_user):
-    url = f"{BASE_URL}/api/requests/{from_user}/respond"
+def accept_friend_request(token, request_id, current_user):
+    url = f"{BASE_URL}/api/requests/{request_id}/respond"
 
     headers = {
         "Authorization": f"Bearer {token}"
@@ -135,15 +143,33 @@ def accept_friend_request(token, user, from_user):
     # FALLBACK
     print("[MOCK] Accept locally")
 
-    if user in mock_friend_requests and from_user in mock_friend_requests[user]:
-        mock_friend_requests[user].remove(from_user)
+    user = current_user
 
+    req_list = mock_friend_requests.get(user, [])
+    from_user = None
+
+    # find first
+    for r in req_list:
+        if str(r["id"]) == str(request_id):
+            from_user = r["fromUser"]
+            break
+
+    # remove after found
+    mock_friend_requests[user] = [
+        r for r in req_list if str(r["id"]) != str(request_id)
+    ]
+
+    # update friend list
+    if from_user:
         mock_friends.setdefault(user, []).append(from_user)
         mock_friends.setdefault(from_user, []).append(user)
+        print(f"[Accepted] {from_user} is now your friend")
+    else:
+        print("Request not found")
 
     return {"status": "mock_accepted"}
 
-def get_incoming_requests(token):
+def get_incoming_requests(token, current_user):
     url = f"{BASE_URL}/api/requests/incoming"
 
     headers = {
@@ -164,9 +190,7 @@ def get_incoming_requests(token):
     print("[MOCK] Using local incoming requests")
 
     # mock structure
-    return [
-        {"id": "1", "fromUser": "alice"}
-    ]
+    return mock_friend_requests.get(current_user, [])
 
 
 def are_friends(user1, user2): # check if friends

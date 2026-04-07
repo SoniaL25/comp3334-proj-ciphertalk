@@ -11,12 +11,14 @@ username = None
 local_messages = {}  # message_id -> (msg, expiry)
 
 def init_mock_data(user):
-    # incoming request
-    api.mock_friend_requests.setdefault(user, []).append("alice")
+    if user not in api.mock_friend_requests:
+        api.mock_friend_requests[user] = [
+            {"id": "1", "fromUser": "bob"},
+            {"id": "2", "fromUser": "charlie"}
+        ]
 
-    # friend list
-    api.mock_friends.setdefault(user, []).append("alice")
-    api.mock_friends.setdefault("alice", []).append(user)
+    if user not in api.mock_friends:
+        api.mock_friends[user] = []
 
     print(f"[MOCK INIT] Data loaded for {user}")
 
@@ -105,32 +107,37 @@ def send_friend_request():
 
 
 def accept_friend_request():
-    global username, token
+    global token, username
 
-    # mock incoming
-    requests = api.mock_friend_requests.get(username, [])
+    incoming_requests = api.get_incoming_requests(token, username)
 
-    if not requests:
+    if not incoming_requests:
         print("No incoming requests")
         return
 
     print("\n[Incoming Requests]:")
-    for i, user in enumerate(requests):
-        print(f"ID: {i+1} from {user}")
+    for r in incoming_requests:
+        print(f"ID: {r['id']} from {r['fromUser']}")
 
-    choice = input("Enter request ID to accept: ")
+    req_id = input("Enter request ID to accept: ").strip()
 
-    try:
-        idx = int(choice) - 1
-        from_user = requests[idx]
-    except:
-        print("Invalid ID")
+    res = api.accept_friend_request(token, req_id, username)
+
+    if res:
+        print("[Accepted] Friend request accepted")
+    else:
+        print("[Error] Accept failed")
         return
 
-    # call api（with fallback）
-    api.accept_friend_request(token, username, from_user)
+    # refresh
+    updated_requests = api.get_incoming_requests(token, username)
 
-    print(f"[Accepted] You are now friends with {from_user}")
+    if not updated_requests:
+        print("\n[Updated] No more incoming requests")
+    else:
+        print("\n[Updated Incoming Requests]:")
+        for r in updated_requests:
+            print(f"ID: {r['id']} from {r['fromUser']}")
 
 
 def show_friends():
