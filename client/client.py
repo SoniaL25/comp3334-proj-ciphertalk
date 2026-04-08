@@ -1,12 +1,16 @@
 from crypto_module import crypto_module as crypto
 from client import api
 import base64
+import os
 import time
+import re
+from cryptography.hazmat.primitives.asymmetric import dh
 
-identity_private, identity_public = crypto.generate_identity_keypair()
-session_parameters = crypto.generate_dh_parameters()
-session_private, session_public = crypto.generate_dh_keypair(session_parameters)
-session_public_pem = crypto.serialize_public_key(session_public)
+KEY_DIR = os.path.join(os.path.dirname(__file__), ".keys")
+current_user_email = None
+current_private_key = None
+current_public_key = None
+current_public_pem = None
 shared_key = None
 shared_keys = {}
 active_peer_email = None
@@ -36,8 +40,76 @@ def decode_bytes(s):
     return base64.b64decode(s.encode())
 
 
+def ensure_key_dir():
+    os.makedirs(KEY_DIR, exist_ok=True)
+
+
+def sanitize_key_name(email):
+    return re.sub(r"[^A-Za-z0-9._-]", "_", email.strip().lower())
+
+
+def get_key_paths(email):
+    safe_name = sanitize_key_name(email)
+    private_path = os.path.join(KEY_DIR, f"{safe_name}_private.pem")
+    public_path = os.path.join(KEY_DIR, f"{safe_name}_public.pem")
+    return private_path, public_path
+
+
+def set_current_keypair(email, private_key, public_key):
+    global current_user_email, current_private_key, current_public_key, current_public_pem
+    current_user_email = email
+    current_private_key = private_key
+    current_public_key = public_key
+    current_public_pem = crypto.serialize_public_key(public_key)
+
+
+def load_or_create_user_keypair(email):
+    ensure_key_dir()
+    private_path, public_path = get_key_paths(email)
+
+    if os.path.exists(private_path):
+        with open(private_path, "r", encoding="utf-8") as f:
+            private_pem = f.read()
+        try:
+            private_key = crypto.load_private_key(private_pem)
+        except Exception:
+            private_key = None
+
+        # Old RSA key files cannot derive shared secrets with .exchange(); regenerate.
+        if private_key is not None and not hasattr(private_key, "exchange"):
+            private_key = None
+
+        if private_key is not None:
+            public_key = private_key.public_key()
+
+            if not os.path.exists(public_path):
+                with open(public_path, "w", encoding="utf-8") as f:
+                    f.write(crypto.serialize_public_key(public_key))
+
+            set_current_keypair(email, private_key, public_key)
+            print(f"[Key] Loaded persistent keypair for {email}")
+            return private_key, public_key
+
+        print(f"[Key] Existing keypair for {email} is incompatible; regenerating")
+
+    session_parameters = crypto.generate_dh_parameters()
+    private_key, public_key = crypto.generate_dh_keypair(session_parameters)
+    with open(private_path, "w", encoding="utf-8") as f:
+        f.write(crypto.serialize_private_key(private_key))
+    with open(public_path, "w", encoding="utf-8") as f:
+        f.write(crypto.serialize_public_key(public_key))
+
+    set_current_keypair(email, private_key, public_key)
+    print(f"[Key] Generated and saved new persistent keypair for {email}")
+    return private_key, public_key
+
+
 def show_fingerprint(): # Identity
-    fp = crypto.generate_fingerprint(identity_public)
+    if current_public_key is None:
+        print("Please login first")
+        return
+
+    fp = crypto.generate_fingerprint(current_public_key)
     print(f"[Key] Your fingerprint:\n{fp}")
 
 
@@ -45,7 +117,11 @@ def upload_my_public_key():
     if not token:
         return False
 
-    res = api.upload_public_key(session_public_pem)
+    if current_public_pem is None:
+        print("[WARN] No local public key loaded")
+        return False
+
+    res = api.upload_public_key(current_public_pem)
     if res is None:
         print("[WARN] Failed to upload public key")
         return False
@@ -54,8 +130,34 @@ def upload_my_public_key():
     return True
 
 
+def ensure_my_public_key_synced():
+    if not token:
+        return False
+
+    if current_public_pem is None:
+        print("[WARN] No local public key loaded")
+        return False
+
+    current = api.get_my_public_key()
+    server_pem = None
+    if isinstance(current, dict):
+        server_pem = current.get("publicKey")
+    elif isinstance(current, str):
+        server_pem = current
+
+    if server_pem and server_pem.strip() == current_public_pem.strip():
+        return True
+
+    print("[Key] Syncing local public key to server")
+    return upload_my_public_key()
+
+
 def establish_shared_key(peer_email):
     global shared_key, active_peer_email
+
+    if current_private_key is None or current_public_key is None:
+        print("Please login first")
+        return None
 
     peer_info = api.get_public_key_by_email(peer_email)
     if not peer_info:
@@ -67,9 +169,19 @@ def establish_shared_key(peer_email):
         print(f"[Key] Invalid peer public key for {peer_email}")
         return None
 
-    peer_public_key = crypto.load_public_key(peer_public_pem)
-    salt = crypto.derive_pair_salt(session_public, peer_public_key)
-    derived_key = crypto.compute_shared_secret(session_private, peer_public_key, salt=salt)
+    try:
+        peer_public_key = crypto.load_public_key(peer_public_pem)
+        if not isinstance(peer_public_key, dh.DHPublicKey):
+            print(
+                f"[Key] {peer_email} has a non-DH public key on the server. "
+                "They need to log in with the updated client once so their DH public key is uploaded."
+            )
+            return None
+        salt = crypto.derive_pair_salt(current_public_key, peer_public_key)
+        derived_key = crypto.compute_shared_secret(current_private_key, peer_public_key, salt=salt)
+    except Exception as ex:
+        print(f"[Key] Shared key exchange failed with {peer_email}: {ex}")
+        return None
 
     shared_keys[peer_email] = derived_key
     shared_key = derived_key
@@ -82,10 +194,30 @@ def build_associated_data(sender_email, receiver_email, chat_id, client_message_
     return f"{sender_email}|{receiver_email}|{chat_id}|{client_message_id}|{tag}".encode()
 
 
+def decrypt_with_peer_retry(peer_email, sender_email, receiver_email, chat_id, message_id, tag, nonce, ciphertext):
+    key = shared_keys.get(peer_email)
+    if key:
+        try:
+            associated_data = build_associated_data(sender_email, receiver_email, chat_id, message_id, tag)
+            return crypto.decrypt_message(key, nonce, ciphertext, associated_data)
+        except Exception:
+            pass
+
+    # One refresh attempt in case peer rotated/re-uploaded key.
+    refreshed_key = establish_shared_key(peer_email)
+    if not refreshed_key:
+        raise ValueError("Could not refresh shared key")
+
+    associated_data = build_associated_data(sender_email, receiver_email, chat_id, message_id, tag)
+    return crypto.decrypt_message(refreshed_key, nonce, ciphertext, associated_data)
+
+
 def do_register(): # Auth
     u = input("Email: ")
     p = input("Password: ")
     res = api.register(u, p)
+    if isinstance(res, dict) and res.get("status") != "mock_registered":
+        load_or_create_user_keypair(u)
     print(res)
 
 
@@ -100,6 +232,8 @@ def do_login():
     if res.get("status") == "mock_success":
         token = res.get("token")
         username = u
+
+        load_or_create_user_keypair(username)
 
         init_mock_data(username) 
 
@@ -117,16 +251,20 @@ def do_login():
             token = token_res
             username = u
 
+            load_or_create_user_keypair(username)
+
             init_mock_data(username) 
 
-            upload_my_public_key()
+            ensure_my_public_key_synced()
 
             print("Login success")
         else:
             print("Login failed")
+            return
 
     else:
         print("Login failed")
+        return
 
 
 def setup_shared_key(): # Key Exchange
@@ -136,7 +274,7 @@ def setup_shared_key(): # Key Exchange
         print("Please login first")
         return
 
-    if not upload_my_public_key():
+    if not ensure_my_public_key_synced():
         return
 
     if establish_shared_key(peer_email):
@@ -191,22 +329,91 @@ def accept_friend_request():
 
 
 def show_friends():
-    global username
+    if not token:
+        print("Please login first")
+        return
 
-    friends = api.mock_friends.get(username, [])
+    chats = api.get_friend_chats(token)
 
-    print("\n[Friends]:")
-    if not friends:
-        print("(No friends)")
-    else:
-        for f in friends:
-            print(f"- {f}")
+    print("\n[Friend Chats]:")
+    if not chats:
+        print("(No friend chats)")
+        return
+
+    chat_lookup = {}
+    for chat in chats:
+        chat_id = str(chat.get("chatId") or "")
+        friend_email = chat.get("friendEmail") or "(unknown)"
+        unread_count = chat.get("numOfUnreadMessage") or 0
+        last_time = chat.get("lastMessageDateTime") or "-"
+
+        if not chat_id:
+            continue
+
+        chat_lookup[chat_id] = chat
+        print(f"- Chat ID: {chat_id} | Friend: {friend_email} | Unread: {unread_count} | Last: {last_time}")
+
+    if not chat_lookup:
+        print("(No valid chat IDs)")
+        return
+
+    selected_chat_id = input("Enter friend chat ID to fetch unread messages (blank to cancel): ").strip()
+    if not selected_chat_id:
+        return
+
+    if selected_chat_id not in chat_lookup:
+        print("Invalid chat ID")
+        return
+
+    peer_email = chat_lookup[selected_chat_id].get("friendEmail")
+    if peer_email:
+        establish_shared_key(peer_email)
+
+    chat_messages = api.get_messages(token, selected_chat_id)
+
+    if not chat_messages:
+        print("(No unread messages in this chat)")
+        return
+
+    print(f"\n[Unread Messages in Chat {selected_chat_id}]:")
+    for m in chat_messages:
+        content = m.get("content")
+        nonce_value = m.get("nonce")
+        message_id = m.get("clientMessageId") or str(hash(str(m)))
+        tag = m.get("tag") or ""
+
+        if not content or not nonce_value:
+            continue
+
+        try:
+            if peer_email and peer_email in shared_keys:
+                ciphertext = decode_bytes(content)
+                nonce = decode_bytes(nonce_value)
+                plaintext = decrypt_with_peer_retry(
+                    peer_email,
+                    peer_email,
+                    username,
+                    selected_chat_id,
+                    message_id,
+                    tag,
+                    nonce,
+                    ciphertext,
+                )
+                print(f"- [{m.get('sentAt')}] {peer_email}: {plaintext}")
+            else:
+                print(f"- [{m.get('sentAt')}] (encrypted) content={content}")
+        except Exception:
+            print(f"- [{m.get('sentAt')}] (failed to decrypt) content={content}")
 
 def send_message(): # Send Message 
     global shared_key
 
     if not token:
         print("Please login first")
+        return
+
+    if not ensure_my_public_key_synced():
+        print("Key sync failed; cannot send securely")
         return
     
     receiver = input("Send to (username/email): ").strip()
@@ -215,9 +422,8 @@ def send_message(): # Send Message
         print("You must be friends before sending messages")
         return
 
-    if receiver not in shared_keys:
-        if not establish_shared_key(receiver):
-            return
+    if not establish_shared_key(receiver):
+        return
 
     shared_key = shared_keys.get(receiver)
 
@@ -269,11 +475,8 @@ def receive_messages(): # Receive Message
     peer_email = input("Peer email: ").strip()
     chat_id = input("Chat ID: ")
 
-    if peer_email not in shared_keys:
-        if not establish_shared_key(peer_email):
-            return
-
-    shared_key = shared_keys.get(peer_email)
+    if not establish_shared_key(peer_email):
+        return
 
     res = api.get_messages(token, chat_id)
 
@@ -298,13 +501,15 @@ def receive_messages(): # Receive Message
                 continue
 
             tag = m.get("tag") or ""
-            associated_data = build_associated_data(peer_email, username, chat_id, message_id, tag)
-
-            plaintext = crypto.decrypt_message(
-                shared_key,
+            plaintext = decrypt_with_peer_retry(
+                peer_email,
+                peer_email,
+                username,
+                chat_id,
+                message_id,
+                tag,
                 nonce,
                 ciphertext,
-                associated_data
             )
 
             expiry = None  # server do not suport TTL
@@ -332,36 +537,51 @@ def cleanup_messages(): # Cleanup
 
 
 def show_inbox():
-    global local_messages
-
-    messages = list(local_messages.values())
-
-    if not messages:
-        print("(No messages)")
+    if not token:
+        print("Please login first")
         return
 
-    page_size = 3
-    page = 0
+    messages = api.get_undelivered_messages(token)
 
-    while True:
-        start = page * page_size
-        end = start + page_size
-        chunk = messages[start:end]
+    if not messages:
+        print("(No undelivered messages)")
+        return
 
-        if not chunk:
-            print("(No more messages)")
-            break
+    print("\n[Undelivered Inbox Messages]:")
+    for m in messages:
+        chat_id = str(m.get("chatId") or "")
+        sender_id = str(m.get("senderId") or "")
+        sender_email = "(unknown)"
 
-        print(f"\n[Inbox Page {page+1}]:")
-        for msg, _ in chunk:
-            print(f"[Message] {msg}")
+        if sender_id:
+            sender_info = api.get_user_by_id(sender_id)
+            if sender_info and sender_info.get("email"):
+                sender_email = sender_info.get("email")
 
-        cmd = input("Press n for next page, q to quit: ")
+        content = m.get("content")
+        nonce_value = m.get("nonce")
+        message_id = m.get("clientMessageId") or str(hash(str(m)))
+        tag = m.get("tag") or ""
 
-        if cmd == "n":
-            page += 1
-        else:
-            break
+        rendered = content
+        if sender_email != "(unknown)" and content and nonce_value and chat_id:
+            try:
+                ciphertext = decode_bytes(content)
+                nonce = decode_bytes(nonce_value)
+                rendered = decrypt_with_peer_retry(
+                    sender_email,
+                    sender_email,
+                    username,
+                    chat_id,
+                    message_id,
+                    tag,
+                    nonce,
+                    ciphertext,
+                )
+            except Exception:
+                rendered = "(failed to decrypt)"
+
+        print(f"- Chat: {chat_id} | From: {sender_email} | Sent: {m.get('sentAt')} | Message: {rendered}")
 
 
 def main(): # CLI

@@ -19,7 +19,7 @@ import lombok.AllArgsConstructor;
 public class ChatService {
 
     private static final int MAX_MESSAGE_HASH_LENGTH = 4096; // 4KB hash size limit
-    private static final int MAX_NONCE_LENGTH = 12; // 12 bytes nonce size limit
+    private static final int MAX_NONCE_LENGTH = 64; // base64 nonce string length upper bound
     private static final String HASH_FORMAT_REGEX = "^[A-Za-z0-9+/=._:-]+$";
     
     private final FriendChatRepository chatRepo;
@@ -111,6 +111,19 @@ public class ChatService {
             .toList();
     }
 
+    // Get all undelivered (SENT) messages for receiver across all chats
+    public List<MessageDto> getUndeliveredMessagesForReceiver(String receiverEmail) {
+        UUID receiverId = requireUserIdByEmail(receiverEmail);
+        List<Message> undelivered = messageRepo.findByReceiverIdAndStatusOrderByCreatedAtAsc(receiverId, MessageStatus.SENT);
+
+        // Exclude expired messages from inbox results.
+        undelivered.removeIf(message -> message.getExpiresAt() != null && message.getExpiresAt().isBefore(LocalDateTime.now()));
+
+        return undelivered.stream()
+            .map(this::toMessageDto)
+            .toList();
+    }
+
     // Remove a friend
     public void removeFriend(String chatId, String requesterEmail) {
         UUID requesterId = requireUserIdByEmail(requesterEmail);
@@ -153,8 +166,10 @@ public class ChatService {
         long unreadCount = unreadMessages.size();
 
         return FriendChatDto.builder()
+            .chatId(chat.getId())
             .senderId(counterpartyId)
             .receiverId(userId)
+            .friendEmail(requireUserEmailById(counterpartyId))
             .numOfUnreadMessage(unreadCount)
             .lastMessageDateTime(getLastMessageTime(chat))
             .build();
@@ -197,6 +212,14 @@ public class ChatService {
             throw new UserNotFoundException("User with email " + email + " not found");
         }
         return user.getId();
+    }
+
+    private String requireUserEmailById(UUID userId) {
+        User user = userRepo.findById(userId).orElse(null);
+        if (user == null) {
+            throw new UserNotFoundException("User with id " + userId + " not found");
+        }
+        return user.getEmail();
     }
 
     // get the other user's id in the chat, given one user's id
@@ -265,6 +288,8 @@ public class ChatService {
     // Convert a message entity into a response DTO
     private MessageDto toMessageDto(Message message) {
         return MessageDto.builder()
+            .chatId(message.getChatId())
+            .senderId(message.getSenderId())
             .content(message.getContent())
             .nonce(message.getNonce())
             .clientMessageId(message.getClientMessageId())

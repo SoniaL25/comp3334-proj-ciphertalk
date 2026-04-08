@@ -66,7 +66,7 @@ class FriendRequestControllerIntegrationTest extends IntegrationTestBase {
         session.setAttribute("OTP_USER", receiver.getEmail());
 
         ActionRequest action = new ActionRequest();
-        action.setAccepted(true);
+        action.setAction(FriendRequestStatus.ACCEPTED);
 
         // Act: accept request.
         var response = controller.respondToFriendRequest(request.getId().toString(), action, session);

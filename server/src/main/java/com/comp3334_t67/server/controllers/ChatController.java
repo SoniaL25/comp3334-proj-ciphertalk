@@ -45,6 +45,14 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success("Messages retrieved successfully", messages));
     }
 
+    // receiver gets all undelivered messages across chats
+    @GetMapping("/inbox/undelivered")
+    public ResponseEntity<ApiResponse<List<MessageDto>>> getUndeliveredMessages(HttpSession session) {
+        String email = requireSessionEmail(session);
+        List<MessageDto> messages = chatService.getUndeliveredMessagesForReceiver(email);
+        return ResponseEntity.ok(ApiResponse.success("Undelivered messages retrieved successfully", messages));
+    }
+
     // remove friend
     @DeleteMapping("/{chatId}")
     public ResponseEntity<ApiResponse<Void>> removeFriend(@PathVariable String chatId, HttpSession session) {

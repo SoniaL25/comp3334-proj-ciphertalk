@@ -13,8 +13,10 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FriendChatDto {
+    private UUID chatId;
     private UUID senderId;
     private UUID receiverId;
+    private String friendEmail;
     private long numOfUnreadMessage;
     private LocalDateTime lastMessageDateTime;
 }

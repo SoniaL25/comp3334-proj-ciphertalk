@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_public_key
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, PrivateFormat, NoEncryption, load_pem_public_key, load_pem_private_key
 
 
 ### Password hashing --- 
@@ -48,15 +48,30 @@ def generate_identity_keypair():
 ### Session establishment: Diffie-Hellman key exchange ---
 
 def generate_dh_parameters():
-    # p is a 2048-bit prime number
-    # g is the generator, g^a mod p
-    parameters = dh.generate_parameters(generator=2, key_size=2048)
-    return parameters
+    # Use a fixed 2048-bit MODP group (RFC 3526 group 14) so all clients share
+    # the same p/g and can perform DH exchange across independent processes.
+    p_hex = (
+        "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1"
+        "29024E088A67CC74020BBEA63B139B22514A08798E3404DD"
+        "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245"
+        "E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED"
+        "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3D"
+        "C2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F"
+        "83655D23DCA3AD961C62F356208552BB9ED529077096966D"
+        "670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B"
+        "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9"
+        "DE2BCBF6955817183995497CEA956AE515D2261898FA0510"
+        "15728E5A8AACAA68FFFFFFFFFFFFFFFF"
+    )
+    p = int(p_hex, 16)
+    g = 2
+    params = dh.DHParameterNumbers(p, g)
+    return params.parameters()
 
 
 def generate_dh_keypair(parameters):
     private_key = parameters.generate_private_key()
-    public_key = private_key.public_key()  # public value is g^a mod p 
+    public_key = private_key.public_key()
     return private_key, public_key
 
 
@@ -84,10 +99,25 @@ def serialize_public_key(public_key):
     return public_key_bytes.decode("utf-8")
 
 
+def serialize_private_key(private_key):
+    private_key_bytes = private_key.private_bytes(
+        encoding=Encoding.PEM,
+        format=PrivateFormat.PKCS8,
+        encryption_algorithm=NoEncryption()
+    )
+    return private_key_bytes.decode("utf-8")
+
+
 def load_public_key(pem_public_key):
     if isinstance(pem_public_key, bytes):
         pem_public_key = pem_public_key.decode("utf-8")
     return load_pem_public_key(pem_public_key.encode("utf-8"))
+
+
+def load_private_key(pem_private_key):
+    if isinstance(pem_private_key, bytes):
+        pem_private_key = pem_private_key.decode("utf-8")
+    return load_pem_private_key(pem_private_key.encode("utf-8"), password=None)
 
 
 def derive_pair_salt(public_key_a, public_key_b):

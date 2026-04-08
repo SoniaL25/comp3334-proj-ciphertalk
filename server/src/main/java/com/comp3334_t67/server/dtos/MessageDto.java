@@ -1,6 +1,7 @@
 package com.comp3334_t67.server.dtos;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import com.comp3334_t67.server.enums.MessageStatus;
 
@@ -14,6 +15,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MessageDto {
+    private UUID chatId;
+    private UUID senderId;
     private String content;
     private String nonce;
     private String clientMessageId;

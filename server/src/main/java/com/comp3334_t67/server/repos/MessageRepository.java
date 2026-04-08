@@ -15,6 +15,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     List<Message> findByReceiverIdAndChatIdAndStatus(UUID receiverId, UUID chatId, MessageStatus status);
 
+    List<Message> findByReceiverIdAndStatusOrderByCreatedAtAsc(UUID receiverId, MessageStatus status);
+
     Optional<Message> findTopByChatIdOrderByCreatedAtDesc(UUID chatId);
 
     long countByReceiverIdAndChatIdAndStatus(UUID receiverId, UUID chatId, MessageStatus status);

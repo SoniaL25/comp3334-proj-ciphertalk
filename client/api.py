@@ -58,10 +58,13 @@ def login(username, password):
             session_id = get_session_id()
             return {"status": "otp_required", "session_id": session_id}
 
+        print("Login failed (server):", res.status_code, res.text)
+        return None
+
     except Exception as e:
         print("Login server error:", e)
 
-    # fallback
+    # fallback only when server is unreachable
     print("[MOCK] Login success (skip OTP)")
     return {"status": "mock_success", "token": "mock-token"}
 
@@ -85,10 +88,13 @@ def verify_otp(email, otp):
             session_id = get_session_id()
             return session_id or True
 
+        print("Verify OTP failed (server):", res.status_code, res.text)
+        return None
+
     except Exception as e:
         print("Verify error:", e)
 
-    # fallback
+    # fallback only when server is unreachable
     print("[MOCK] OTP bypass")
     return "mock-token"
 
@@ -236,6 +242,9 @@ def get_incoming_requests(token, current_user):
 
 
 def are_friends(user1, user2): # check if friends
+    chats = get_friend_chats(None)
+    if chats:
+        return any((c.get("friendEmail") or "").lower() == user2.lower() for c in chats)
     return user2 in mock_friends.get(user1, [])
     
 
@@ -249,11 +258,12 @@ def send_message(token, chat_id, payload): #chat
             return res.json()
         else:
             print("Send failed (server):", res.text)
+            return None
 
     except Exception as e:
         print("Send server error:", e)
 
-    # fallback mock send
+    # fallback mock send only when server is unreachable
     print("[MOCK] Using local send fallback")
 
     if chat_id not in mock_db:
@@ -292,3 +302,75 @@ def get_messages(token, chat_id):
     print("[MOCK] Using local inbox")
 
     return mock_db.get(chat_id, [])
+
+
+def get_friend_chats(token):
+    url = f"{BASE_URL}/api/chats"
+
+    try:
+        res = _session.get(url)
+
+        if res.status_code == 200:
+            payload = res.json()
+            return payload.get("data", payload)
+
+        print("Get friend chats failed (server):", res.status_code, res.text)
+
+    except Exception as e:
+        print("Get friend chats error:", e)
+
+    return []
+
+
+def get_undelivered_messages(token):
+    url = f"{BASE_URL}/api/chats/inbox/undelivered"
+
+    try:
+        res = _session.get(url)
+
+        if res.status_code == 200:
+            payload = res.json()
+            return payload.get("data", payload)
+
+        print("Get undelivered messages failed (server):", res.status_code, res.text)
+
+    except Exception as e:
+        print("Get undelivered messages error:", e)
+
+    return []
+
+
+def get_user_by_id(user_id):
+    url = f"{BASE_URL}/api/users/{user_id}"
+
+    try:
+        res = _session.get(url)
+
+        if res.status_code == 200:
+            payload = res.json()
+            return payload.get("data", payload)
+
+        print("Get user by id failed (server):", res.status_code, res.text)
+
+    except Exception as e:
+        print("Get user by id error:", e)
+
+    return None
+
+
+def get_my_public_key():
+    url = f"{BASE_URL}/api/profile/public-key"
+
+    try:
+        res = _session.get(url)
+
+        if res.status_code == 200:
+            payload = res.json()
+            return payload.get("data", payload)
+
+        print("Get my public key failed (server):", res.status_code, res.text)
+
+    except Exception as e:
+        print("Get my public key error:", e)
+
+    return None
