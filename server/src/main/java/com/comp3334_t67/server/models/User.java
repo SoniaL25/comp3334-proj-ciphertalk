@@ -26,5 +26,13 @@ public class User {
 
     @Column(name = "key_updated_at")
     private LocalDateTime keyUpdatedAt;
+
+    @Builder.Default
+    @Column(name = "otp_secret", nullable = false)
+    private int otpSecret = 0;
+
+    @Builder.Default
+    @Column(name = "otp_expiry", nullable = false)
+    private LocalDateTime otpExpiry = LocalDateTime.now();
     
 }

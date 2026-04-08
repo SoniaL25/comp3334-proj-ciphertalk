@@ -1,21 +1,23 @@
 package com.comp3334_t67.server.services;
 
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
-import com.comp3334_t67.server.Exceptions.*;
-import com.comp3334_t67.server.models.*;
 import java.security.SecureRandom;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.regex.Pattern;
 
-import com.comp3334_t67.server.repos.*;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.comp3334_t67.server.Exceptions.InvalidCredentialsException;
+import com.comp3334_t67.server.Exceptions.InvalidInputException;
+import com.comp3334_t67.server.Exceptions.UserAlreadyExistsException;
+import com.comp3334_t67.server.models.User;
+import com.comp3334_t67.server.repos.UserRepository;
+
+import lombok.RequiredArgsConstructor;
 
 
 @Service
@@ -29,9 +31,6 @@ public class AuthService {
     private final EmailService emailService;
     private final RateLimitService rateLimitService;
     private final PasswordEncoder passwordEncoder;
-
-    private final Map<String, String> otpStore = new ConcurrentHashMap<>();
-    private final Map<String, Long> expiryStore = new ConcurrentHashMap<>();
 
     private final int LOGIN_LOCKOUT_DURATION = 15;
     private final int LOGIN_MAX_ATTEMPTS = 10;
@@ -80,10 +79,11 @@ public class AuthService {
             throw new InvalidCredentialsException("Invalid email or password");
         }
         
-        // generate OTP and store it in memory with an expiry time
+        // generate OTP and store it in database with an expiry time
         int otp = generateOTP();
-        otpStore.put(email, passwordEncoder.encode(String.valueOf(otp)));
-        expiryStore.put(email, System.currentTimeMillis() + 300000); // 5 minutes expiry
+        user.setOtpSecret(otp);
+        user.setOtpExpiry(LocalDateTime.now().plusMinutes(5)); // OTP valid for 5 minutes
+        userRepo.save(user);
 
         // send OTP to user's email
         emailService.sendOtpEmail(email, String.valueOf(otp));
@@ -98,17 +98,22 @@ public class AuthService {
         log.info("OTP verification attempt received");
         
         // check if OTP exists for the email
-        if (otpStore.containsKey(email) && expiryStore.containsKey(email)) {
-
+        User user = userRepo.findByEmail(email);
+        if (user == null) {
+            log.warn("OTP verification failed: user not found");
+            return false;
+        }
+        else if (user.getOtpSecret() != 0) { // check if OTP is set for the user
             // check if OTP is still valid (ie not expired)
-            if (System.currentTimeMillis() < expiryStore.get(email)) {
+            if (user.getOtpExpiry() != null && user.getOtpExpiry().isAfter(LocalDateTime.now())) {
                 // verify OTP is correct
-                boolean isValid = passwordEncoder.matches(String.valueOf(otp), otpStore.get(email));
+                boolean isValid = user.getOtpSecret() == otp;
                 
                 // If OTP is valid, remove it from the store to prevent reuse
                 if (isValid) {
-                    otpStore.remove(email);
-                    expiryStore.remove(email);
+                    user.setOtpSecret(0);
+                    user.setOtpExpiry(LocalDateTime.now());
+                    userRepo.save(user);
                     log.info("OTP verification succeeded");
                 } else {
                     log.warn("OTP verification failed: mismatch");
@@ -119,8 +124,9 @@ public class AuthService {
             } else {
 
                 // OTP expired, remove from store
-                otpStore.remove(email);
-                expiryStore.remove(email);
+                user.setOtpSecret(0);
+                user.setOtpExpiry(LocalDateTime.now());
+                userRepo.save(user);
                 log.warn("OTP verification failed: OTP expired");
             }
         }

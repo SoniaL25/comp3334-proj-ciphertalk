@@ -5,7 +5,9 @@
 import requests
 import time
 
-BASE_URL = "http://localhost:8080"
+from sqlalchemy import true
+
+BASE_URL = "https://yoshie-kathartic-turbidimetrically.ngrok-free.dev" #"http://localhost:8080"
 
 # Mock storage (for fallback)
 mock_db = {}
@@ -74,9 +76,10 @@ def verify_otp(email, otp):
         })
 
         if res.status_code == 200:
-            data = res.json()
+            # data = res.json()
             print("[SERVER] OTP verified")
-            return data.get("token")
+            print("Received cookies:", res.cookies.get("CTIM_SESSION"))
+            return res.cookies.get("CTIM_SESSION")
 
     except Exception as e:
         print("Verify error:", e)

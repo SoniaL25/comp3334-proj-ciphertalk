@@ -12,7 +12,6 @@ import java.time.Duration;
 import java.util.List;
 
 import com.comp3334_t67.server.Exceptions.OtpInvalidException;
-import com.comp3334_t67.server.Exceptions.OtpSessionMissingException;
 import com.comp3334_t67.server.dtos.*;
 import com.comp3334_t67.server.services.*;
 
@@ -106,36 +105,22 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> verifyOtp(HttpServletRequest request, @RequestBody OtpVerificationRequest otpRequest) {
         String ip = request.getRemoteAddr();
         log.info("OTP verification request received from ip={}", ip);
-        HttpSession session = request.getSession(false);
-        if (session == null) {
-            log.warn("OTP verification failed: no active session from ip={}", ip);
-            throw new OtpSessionMissingException("No active session");
-        }
 
-        String email = (String) session.getAttribute("OTP_USER");
-        if (email == null) {
-            log.warn("OTP verification failed: no OTP flow in session from ip={}", ip);
-            throw new OtpSessionMissingException("No OTP verification in progress");
-        }
-
-        if (!email.equals(otpRequest.getEmail())) {
-            log.warn("OTP verification failed: email mismatch in session from ip={}", ip);
-            throw new OtpSessionMissingException("Invalid OTP");
-        }
-
-        boolean isValid = authService.verifyOtp(email, otpRequest.getOtp());
+        boolean isValid = authService.verifyOtp(otpRequest.getEmail(), otpRequest.getOtp());
         if (!isValid) {
             log.warn("OTP verification failed: invalid OTP from ip={}", ip);
             throw new OtpInvalidException("Invalid OTP");
         }
 
-        // Mark OTP as verified
+        // Create or reuse session after OTP success for subsequent protected endpoints.
+        HttpSession session = request.getSession(true);
+        session.setAttribute("OTP_USER", otpRequest.getEmail());
         session.setAttribute("OTP_VERIFIED", true);
         request.changeSessionId();
 
         // Set authentication in security context (user, credentials, authorities)
         UsernamePasswordAuthenticationToken auth =
-            new UsernamePasswordAuthenticationToken(email, null, List.of());
+            new UsernamePasswordAuthenticationToken(otpRequest.getEmail(), null, List.of());
 
         // store auth in current context
         SecurityContextHolder.getContext().setAuthentication(auth);
