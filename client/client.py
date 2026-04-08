@@ -165,7 +165,8 @@ def accept_friend_request():
 
     print("\n[Incoming Requests]:")
     for r in incoming_requests:
-        print(f"ID: {r['id']} from {r['fromUser']}")
+        if r['status'] == 'PENDING':
+            print(f"ID: {r['id']} from {r['senderEmail']}")
 
     req_id = input("Enter request ID to accept: ").strip()
 
@@ -185,7 +186,8 @@ def accept_friend_request():
     else:
         print("\n[Updated Incoming Requests]:")
         for r in updated_requests:
-            print(f"ID: {r['id']} from {r['fromUser']}")
+            if r['status'] == 'PENDING':
+                print(f"ID: {r['id']} from {r['senderEmail']}")
 
 
 def show_friends():

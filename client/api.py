@@ -172,17 +172,20 @@ def accept_friend_request(token, request_id, current_user):
 
     try:
         res = _session.put(url, json={
-            "action": "ACCEPT"
+            "action": "ACCEPTED"
         })
 
         if res.status_code == 200:
             print("[Friend Accepted - SERVER]")
             return res.json()
 
+        print("Accept request failed (server):", res.status_code, res.text)
+        return None
+
     except Exception as e:
         print("Server error:", e)
 
-    # FALLBACK
+    # FALLBACK only when server is unreachable.
     print("[MOCK] Accept locally")
 
     user = current_user
@@ -220,7 +223,6 @@ def get_incoming_requests(token, current_user):
         if res.status_code == 200:
             print("[SERVER] Incoming requests fetched")
             payload = res.json()
-            print("Payload:", payload)
             return payload.get("data", payload)
 
     except Exception as e:

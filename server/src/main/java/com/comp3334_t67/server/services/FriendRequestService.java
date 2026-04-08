@@ -165,11 +165,21 @@ public class FriendRequestService {
     // Convert FriendRequest to FriendRequestDto
     private FriendRequestDto convertToDto(FriendRequest friendRequest) {
         FriendRequestDto dto = new FriendRequestDto();
+        dto.setId(friendRequest.getId());
         dto.setSenderId(friendRequest.getSenderId());
+        dto.setSenderEmail(requireUserEmailById(friendRequest.getSenderId()));
         dto.setReceiverId(friendRequest.getReceiverId());
         dto.setStatus(friendRequest.getStatus());
         dto.setCreatedAt(friendRequest.getCreatedAt());
         return dto;
+    }
+
+    private String requireUserEmailById(UUID userId) {
+        User user = userRepo.findById(userId).orElse(null);
+        if (user == null) {
+            throw new UserNotFoundException("User with id " + userId + " not found");
+        }
+        return user.getEmail();
     }
 
 }

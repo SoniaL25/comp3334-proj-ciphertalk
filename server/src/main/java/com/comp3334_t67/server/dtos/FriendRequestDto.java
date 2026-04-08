@@ -11,7 +11,9 @@ import lombok.Data;
 @Data
 public class FriendRequestDto {
 
+    private UUID id;
     private UUID senderId;
+    private String senderEmail;
     private UUID receiverId;
     private FriendRequestStatus status; // "pending", "accepted", "rejected", "canceled"
 
