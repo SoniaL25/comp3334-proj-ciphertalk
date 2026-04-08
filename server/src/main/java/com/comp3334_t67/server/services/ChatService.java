@@ -151,7 +151,6 @@ public class ChatService {
         List<Message> unreadMessages = getUnreadMessages(userId, chat.getId());
 
         long unreadCount = unreadMessages.size();
-        markMessagesDelivered(unreadMessages);
 
         return FriendChatDto.builder()
             .senderId(counterpartyId)
