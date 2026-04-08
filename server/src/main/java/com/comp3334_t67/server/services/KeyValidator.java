@@ -1,9 +1,7 @@
 package com.comp3334_t67.server.services;
 
-import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.PublicKey;
-import java.security.interfaces.RSAPublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
@@ -18,24 +16,14 @@ public class KeyValidator {
     private static final String PEM_END = "-----END PUBLIC KEY-----";
     private static final int MIN_ENCODED_KEY_BYTES = 200;
     private static final int MAX_ENCODED_KEY_BYTES = 1000;
-    private static final int MIN_RSA_KEY_BITS = 2048;
-    private static final BigInteger EXPECTED_RSA_EXPONENT = BigInteger.valueOf(65537);
-    
-    
-    public RSAPublicKey validateAndParseRsaPublicKey(String pemKey) {
-        // Validate the PEM envelope first.
+
+    public PublicKey validateAndParseRsaPublicKey(String pemKey) {
         validatePemEnvelope(pemKey);
 
-        // Decode the Base64 body inside the PEM markers.
         byte[] decoded = decodePemBody(extractBase64Body(pemKey));
         validateEncodedLength(decoded);
 
-        // Parse and type-check RSA public key.
-        RSAPublicKey rsaPublicKey = parseRsaPublicKey(decoded);
-
-        // Enforce key strength and expected exponent.
-        validateRsaParameters(rsaPublicKey);
-        return rsaPublicKey;
+        return parsePublicKey(decoded);
     }
 
     private static void validatePemEnvelope(String pemKey) {
@@ -69,37 +57,27 @@ public class KeyValidator {
         }
     }
 
-    private static RSAPublicKey parseRsaPublicKey(byte[] decoded) {
+    private static PublicKey parsePublicKey(byte[] decoded) {
         X509EncodedKeySpec spec = new X509EncodedKeySpec(decoded);
+
         try {
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            PublicKey publicKey = keyFactory.generatePublic(spec);
-
-            if (!(publicKey instanceof RSAPublicKey rsaPublicKey)) {
-                throw new InvalidInputException("Key is not an RSA public key");
+            try {
+                return KeyFactory.getInstance("RSA").generatePublic(spec);
+            } catch (Exception ignored) {
+                // Fall through to other supported key types.
             }
-            return rsaPublicKey;
 
+            try {
+                return KeyFactory.getInstance("DH").generatePublic(spec);
+            } catch (Exception ignored) {
+                // Fall through to other supported key types.
+            }
+
+            throw new InvalidInputException("Key is not a supported public key type");
         } catch (InvalidInputException e) {
             throw e;
         } catch (Exception e) {
-            throw new InvalidInputException("Malformed or unparsable RSA public key", e);
-        }
-    }
-
-    private static void validateRsaParameters(RSAPublicKey rsaKey) {
-        int bitLength = rsaKey.getModulus().bitLength();
-
-        if (bitLength < MIN_RSA_KEY_BITS) {
-            throw new InvalidInputException("RSA key too weak (must be at least 2048 bits)");
-        }
-
-        if (!rsaKey.getPublicExponent().equals(EXPECTED_RSA_EXPONENT)) {
-            throw new InvalidInputException("Unexpected RSA public exponent");
-        }
-
-        if (rsaKey.getModulus().signum() <= 0) {
-            throw new InvalidInputException("Invalid RSA modulus");
+            throw new InvalidInputException("Malformed or unparsable public key", e);
         }
     }
 }

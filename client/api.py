@@ -4,10 +4,14 @@
 
 import requests
 import time
-
-from sqlalchemy import true
+from urllib.parse import quote
+from urllib.parse import urlparse
 
 BASE_URL = "https://yoshie-kathartic-turbidimetrically.ngrok-free.dev" #"http://localhost:8080"
+SESSION_COOKIE_NAME = "CTIM_SESSION"
+
+_session = requests.Session()
+_session_host = urlparse(BASE_URL).hostname
 
 # Mock storage (for fallback)
 mock_db = {}
@@ -25,7 +29,7 @@ mock_friends = {
 def register(username, password): #auth 
     url = f"{BASE_URL}/api/auth/register"
     try:
-        res = requests.post(url, json={
+        res = _session.post(url, json={
             "email": username,
             "password": password
         })
@@ -42,7 +46,7 @@ def login(username, password):
     url = f"{BASE_URL}/api/auth/login"
 
     try:
-        res = requests.post(url, json={
+        res = _session.post(url, json={
             "email": username,
             "password": password
         })
@@ -51,7 +55,8 @@ def login(username, password):
 
         if res.status_code == 200:
             print("[SERVER] OTP sent")
-            return {"status": "otp_required"}
+            session_id = get_session_id()
+            return {"status": "otp_required", "session_id": session_id}
 
     except Exception as e:
         print("Login server error:", e)
@@ -70,16 +75,15 @@ def verify_otp(email, otp):
     url = f"{BASE_URL}/api/auth/verify-otp"
 
     try:
-        res = requests.post(url, json={
+        res = _session.post(url, json={
             "email": email,
             "otp": otp
         })
 
         if res.status_code == 200:
-            # data = res.json()
             print("[SERVER] OTP verified")
-            print("Received cookies:", res.cookies.get("CTIM_SESSION"))
-            return res.cookies.get("CTIM_SESSION")
+            session_id = get_session_id()
+            return session_id or True
 
     except Exception as e:
         print("Verify error:", e)
@@ -89,17 +93,56 @@ def verify_otp(email, otp):
     return "mock-token"
 
 
+def get_session_id():
+    return _session.cookies.get(SESSION_COOKIE_NAME)
+
+
+def upload_public_key(public_key_pem):
+    url = f"{BASE_URL}/api/profile/public-key"
+
+    try:
+        print("Upload cookie:", get_session_id())
+        res = _session.put(url, json={
+            "publicKey": public_key_pem
+        })
+
+        if res.status_code == 200:
+            return res.json()
+
+        print("Upload public key failed (server):", res.status_code, res.text)
+
+    except Exception as e:
+        print("Upload public key error:", repr(e))
+
+    return None
+
+
+def get_public_key_by_email(email):
+    encoded_email = quote(email, safe="")
+    url = f"{BASE_URL}/api/users/email/{encoded_email}/public-key"
+
+    try:
+        res = _session.get(url)
+
+        if res.status_code == 200:
+            payload = res.json()
+            return payload.get("data", payload)
+
+        print("Get public key failed (server):", res.text)
+
+    except Exception as e:
+        print("Get public key error:", e)
+
+    return None
+
+
 def send_friend_request(token, to_user):
     url = f"{BASE_URL}/api/requests/send"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
     try:
-        res = requests.post(url, json={
-            "toUser": to_user
-        }, headers=headers)
+        res = _session.post(url, json={
+            "receiverEmail": to_user
+        })
 
         if res.status_code == 200:
             print("[Friend Request Sent - SERVER]")
@@ -127,14 +170,10 @@ def send_friend_request(token, to_user):
 def accept_friend_request(token, request_id, current_user):
     url = f"{BASE_URL}/api/requests/{request_id}/respond"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
     try:
-        res = requests.put(url, json={
+        res = _session.put(url, json={
             "action": "ACCEPT"
-        }, headers=headers)
+        })
 
         if res.status_code == 200:
             print("[Friend Accepted - SERVER]")
@@ -175,16 +214,14 @@ def accept_friend_request(token, request_id, current_user):
 def get_incoming_requests(token, current_user):
     url = f"{BASE_URL}/api/requests/incoming"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
     try:
-        res = requests.get(url, headers=headers)
+        res = _session.get(url)
 
         if res.status_code == 200:
             print("[SERVER] Incoming requests fetched")
-            return res.json()
+            payload = res.json()
+            print("Payload:", payload)
+            return payload.get("data", payload)
 
     except Exception as e:
         print("Server error:", e)
@@ -203,12 +240,8 @@ def are_friends(user1, user2): # check if friends
 def send_message(token, chat_id, payload): #chat
     url = f"{BASE_URL}/api/chats/{chat_id}"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
     try:
-        res = requests.post(url, json=payload, headers=headers)
+        res = _session.post(url, json=payload)
 
         if res.status_code == 200:
             return res.json()
@@ -241,15 +274,12 @@ def send_message(token, chat_id, payload): #chat
 def get_messages(token, chat_id):
     url = f"{BASE_URL}/api/chats/{chat_id}"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
     try:
-        res = requests.get(url, headers=headers)
+        res = _session.get(url)
 
         if res.status_code == 200:
-            return res.json()
+            payload = res.json()
+            return payload.get("data", payload)
         else:
             print("Get messages failed (server):", res.text)
 

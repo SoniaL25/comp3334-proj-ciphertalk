@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_public_key
 
 
 ### Password hashing --- 
@@ -60,7 +60,7 @@ def generate_dh_keypair(parameters):
     return private_key, public_key
 
 
-def compute_shared_secret(private_key, other_public_key):
+def compute_shared_secret(private_key, other_public_key, salt=None, info=b'handshake'):
     # Alice: B^a mod p = g^(ab) mod p
     # Bob: A^b mod p = g^(ab) mod p
     shared_secret = private_key.exchange(other_public_key)
@@ -69,11 +69,39 @@ def compute_shared_secret(private_key, other_public_key):
     derived_key = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=os.urandom(16), # salt adds extra randomness, generated from CSPRNG (os.urandom)
-        info=b'handshake'
+        salt=salt,
+        info=info
     ).derive(shared_secret)
     
     return derived_key
+
+
+def serialize_public_key(public_key):
+    public_key_bytes = public_key.public_bytes(
+        encoding=Encoding.PEM,
+        format=PublicFormat.SubjectPublicKeyInfo
+    )
+    return public_key_bytes.decode("utf-8")
+
+
+def load_public_key(pem_public_key):
+    if isinstance(pem_public_key, bytes):
+        pem_public_key = pem_public_key.decode("utf-8")
+    return load_pem_public_key(pem_public_key.encode("utf-8"))
+
+
+def derive_pair_salt(public_key_a, public_key_b):
+    first = public_key_a.public_bytes(
+        encoding=Encoding.PEM,
+        format=PublicFormat.SubjectPublicKeyInfo
+    )
+    second = public_key_b.public_bytes(
+        encoding=Encoding.PEM,
+        format=PublicFormat.SubjectPublicKeyInfo
+    )
+
+    ordered = sorted([first, second])
+    return hashlib.sha256(ordered[0] + ordered[1]).digest()
 
 
 

@@ -276,6 +276,10 @@ public class ChatService {
 
     // Build a new outgoing message entity
     private Message createMessage(UUID chatId, UUID senderId, UUID receiverId, String content, String nonce, String clientMessageId, String tag, int ttlMinutes) {
+        LocalDateTime expiresAt = ttlMinutes > 0
+            ? LocalDateTime.now().plusMinutes(ttlMinutes)
+            : null;
+
         return Message.builder()
             .chatId(chatId)
             .senderId(senderId)
@@ -286,7 +290,7 @@ public class ChatService {
             .tag(tag)
             .status(MessageStatus.SENT)
             .createdAt(LocalDateTime.now())
-            .expiresAt(LocalDateTime.now().plusMinutes(ttlMinutes))
+            .expiresAt(expiresAt)
             .build();
     }
 

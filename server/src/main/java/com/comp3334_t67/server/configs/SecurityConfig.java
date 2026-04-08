@@ -18,6 +18,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .ignoringRequestMatchers(
+                    "/api/**",
                     "/api/auth/login",
                     "/api/auth/register",
                     "/api/auth/verify-otp",
@@ -31,6 +32,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/**").permitAll()
                 .anyRequest().authenticated());
 
         return http.build();

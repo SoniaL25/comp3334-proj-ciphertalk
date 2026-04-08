@@ -4,7 +4,12 @@ import base64
 import time
 
 identity_private, identity_public = crypto.generate_identity_keypair()
+session_parameters = crypto.generate_dh_parameters()
+session_private, session_public = crypto.generate_dh_keypair(session_parameters)
+session_public_pem = crypto.serialize_public_key(session_public)
 shared_key = None
+shared_keys = {}
+active_peer_email = None
 token = None
 username = None
 
@@ -34,6 +39,47 @@ def decode_bytes(s):
 def show_fingerprint(): # Identity
     fp = crypto.generate_fingerprint(identity_public)
     print(f"[Key] Your fingerprint:\n{fp}")
+
+
+def upload_my_public_key():
+    if not token:
+        return False
+
+    res = api.upload_public_key(session_public_pem)
+    if res is None:
+        print("[WARN] Failed to upload public key")
+        return False
+
+    print("[Key] Public key uploaded to server")
+    return True
+
+
+def establish_shared_key(peer_email):
+    global shared_key, active_peer_email
+
+    peer_info = api.get_public_key_by_email(peer_email)
+    if not peer_info:
+        print(f"[Key] Could not fetch public key for {peer_email}")
+        return None
+
+    peer_public_pem = peer_info.get("publicKey") if isinstance(peer_info, dict) else peer_info
+    if not peer_public_pem:
+        print(f"[Key] Invalid peer public key for {peer_email}")
+        return None
+
+    peer_public_key = crypto.load_public_key(peer_public_pem)
+    salt = crypto.derive_pair_salt(session_public, peer_public_key)
+    derived_key = crypto.compute_shared_secret(session_private, peer_public_key, salt=salt)
+
+    shared_keys[peer_email] = derived_key
+    shared_key = derived_key
+    active_peer_email = peer_email
+    print(f"[Key] Shared key established with {peer_email}")
+    return derived_key
+
+
+def build_associated_data(sender_email, receiver_email, chat_id, client_message_id, tag):
+    return f"{sender_email}|{receiver_email}|{chat_id}|{client_message_id}|{tag}".encode()
 
 
 def do_register(): # Auth
@@ -73,6 +119,8 @@ def do_login():
 
             init_mock_data(username) 
 
+            upload_my_public_key()
+
             print("Login success")
         else:
             print("Login failed")
@@ -82,17 +130,17 @@ def do_login():
 
 
 def setup_shared_key(): # Key Exchange
-    global shared_key
+    peer_email = input("Peer email: ").strip()
 
-    print("Setting up secure session...")
+    if not token:
+        print("Please login first")
+        return
 
-    params = crypto.generate_dh_parameters()
-    priv, pub = crypto.generate_dh_keypair(params)
+    if not upload_my_public_key():
+        return
 
-    # demo shared key
-    shared_key = crypto.compute_shared_secret(priv, pub)
-
-    print("Secure session established")
+    if establish_shared_key(peer_email):
+        print("Secure session established")
 
 
 def send_friend_request():
@@ -155,18 +203,24 @@ def show_friends():
 def send_message(): # Send Message 
     global shared_key
 
-    if not shared_key:
-        print("No shared key")
-        return
-
     if not token:
         print("Please login first")
         return
     
-    receiver = input("Send to (username): ")
+    receiver = input("Send to (username/email): ").strip()
     
     if not api.are_friends(username, receiver):
         print("You must be friends before sending messages")
+        return
+
+    if receiver not in shared_keys:
+        if not establish_shared_key(receiver):
+            return
+
+    shared_key = shared_keys.get(receiver)
+
+    if not shared_key:
+        print("No shared key")
         return
 
     chat_id = input("Chat ID: ")
@@ -176,48 +230,25 @@ def send_message(): # Send Message
         print("Empty message not allowed")
         return
 
-    ttl = int(input("TTL seconds (0 = no self-destruct): "))
+    ttl_seconds = int(input("TTL seconds (0 = no self-destruct): "))
+    ttl_minutes = max(0, (ttl_seconds + 59) // 60)
 
     message_id = crypto.generate_message_id()
-    timestamp = int(time.time())
+    tag = crypto.generate_message_id()
 
-    sender_name = username if username else "You"
+    associated_data = build_associated_data(username, receiver, chat_id, message_id, tag)
 
-    # demo mode
-    associated_data = b""
-
-    # original ver.
-    #associated_data = f"{message_id}|{sender_name}|{chat_id}|{timestamp}".encode()
-
-    """
-    b'0' *12 part is only for demo, which let the system can run
-    nonce = b'0' * 12
-    _, ciphertext = crypto.encrypt_message(
-        shared_key,
-        msg,
-        associated_data
-    )
-
-    # encode encrypted message into content
-    encrypted_content = encode_bytes(ciphertext)
-
-    payload = {
-        "content": encrypted_content
-    }
-    """
-
-    nonce, ciphertext = crypto.encrypt_message(
-    shared_key,
-    msg,
-    associated_data
-    )
+    nonce, ciphertext = crypto.encrypt_message(shared_key, msg, associated_data)
 
     # encode encrypted message into content
     encrypted_content = encode_bytes(ciphertext)
 
     payload = {
         "content": encrypted_content,
-        "nonce": encode_bytes(nonce)   # 🔥 加呢行
+        "nonce": encode_bytes(nonce),
+        "clientMessageId": message_id,
+        "tag": tag,
+        "ttlMinutes": ttl_minutes
     }
 
     res = api.send_message(token, chat_id, payload)
@@ -229,13 +260,18 @@ def send_message(): # Send Message
 
 
 def receive_messages(): # Receive Message
-    global shared_key
-
     if not token:
         print("Please login first")
         return
 
+    peer_email = input("Peer email: ").strip()
     chat_id = input("Chat ID: ")
+
+    if peer_email not in shared_keys:
+        if not establish_shared_key(peer_email):
+            return
+
+    shared_key = shared_keys.get(peer_email)
 
     res = api.get_messages(token, chat_id)
 
@@ -247,17 +283,20 @@ def receive_messages(): # Receive Message
 
             ciphertext = decode_bytes(content)
 
-            # server don't have nonce → use dummy（demo）
-            #nonce = b'0' * 12
-            nonce = decode_bytes(m.get("nonce"))
+            nonce_value = m.get("nonce")
+            if not nonce_value:
+                continue
 
-            message_id = str(hash(content))
+            nonce = decode_bytes(nonce_value)
+
+            message_id = m.get("clientMessageId") or str(hash(content))
 
             if crypto.is_replay(message_id):
                 print("Replay attack detected!")
                 continue
 
-            associated_data = b""  # server don't have metadata → simplified
+            tag = m.get("tag") or ""
+            associated_data = build_associated_data(peer_email, username, chat_id, message_id, tag)
 
             plaintext = crypto.decrypt_message(
                 shared_key,
