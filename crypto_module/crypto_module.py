@@ -67,10 +67,10 @@ def compute_shared_secret(private_key, other_public_key):
     
     # HKDF turns the raw shared secret into proper symmetric key
     derived_key = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=os.urandom(16), # salt adds extra randomness, generated from CSPRNG (os.urandom)
-        info=b'handshake'
+        algorithm = hashes.SHA256(),
+        length = 32,
+        salt = None
+        info = b'handshake'
     ).derive(shared_secret)
     
     return derived_key
